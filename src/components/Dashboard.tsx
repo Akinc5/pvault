@@ -68,7 +68,7 @@ const Card3D: React.FC<Card3DProps> = ({ children, className = '', mousePosition
 
 const Dashboard: React.FC = () => {
   const { user, signOut } = useAuth();
-  const { profile, checkups, medications, medicalRecords, loading } = useMedicalData();
+  const { profile, checkups, medications, medicalRecords, timelineEvents, loading } = useMedicalData();
   const [activeTab, setActiveTab] = useState('overview');
   const [showUpload, setShowUpload] = useState(false);
   const [showShare, setShowShare] = useState(false);
@@ -460,11 +460,7 @@ const Dashboard: React.FC = () => {
         {activeTab === 'timeline' && (
           <Card3D mousePosition={mousePosition}>
             <GlassmorphicCard className="p-6">
-              <MedicalTimeline 
-                checkups={checkups || []}
-                medications={medications || []}
-                medicalRecords={medicalRecords || []}
-              />
+              <MedicalTimeline events={timelineEvents || []} />
             </GlassmorphicCard>
           </Card3D>
         )}
