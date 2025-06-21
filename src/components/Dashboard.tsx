@@ -31,7 +31,6 @@ import GlassmorphicCard from './GlassmorphicCard';
 import HeartRateVisualization from './3D/HeartRateVisualization';
 import MedicalTimeline from './MedicalTimeline';
 import PrescriptionUpload from './PrescriptionUpload/PrescriptionUpload';
-import Scene3D from './3D/Scene3D';
 
 interface DashboardProps {
   user: User;
@@ -415,29 +414,6 @@ const Dashboard: React.FC<DashboardProps> = ({
 
                     {/* Heart Rate Visualization */}
                     <HeartRateVisualization user={user} className="min-h-[400px]" />
-
-                    {/* 3D Medical Visualization - Removed Heart, kept Brain and Stethoscope */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <GlassmorphicCard className="p-6">
-                        <div className="text-center mb-4">
-                          <h3 className="text-lg font-semibold text-gray-900 mb-2">Brain Health</h3>
-                          <p className="text-gray-600 text-sm">3D Brain Model</p>
-                        </div>
-                        <div className="h-48">
-                          <Scene3D type="brain" />
-                        </div>
-                      </GlassmorphicCard>
-
-                      <GlassmorphicCard className="p-6">
-                        <div className="text-center mb-4">
-                          <h3 className="text-lg font-semibold text-gray-900 mb-2">Medical Tools</h3>
-                          <p className="text-gray-600 text-sm">3D Stethoscope</p>
-                        </div>
-                        <div className="h-48">
-                          <Scene3D type="stethoscope" />
-                        </div>
-                      </GlassmorphicCard>
-                    </div>
 
                     {/* Recent Medical Records */}
                     <GlassmorphicCard className="p-6">
