@@ -1,217 +1,611 @@
-import React, { useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
-import { Heart, Activity, TrendingUp } from 'lucide-react';
-import { User } from '../../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Heart, Activity, Clock, TrendingUp, Zap, Scale, User } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { User as UserType } from '../../types';
+
+interface HeartRateData {
+  heart_rate: number;
+  updated_at: string;
+  source?: string;
+}
+
+interface BMIData {
+  weight: number;
+  height: number;
+  bmi: number;
+  category: string;
+  updated_at: string;
+}
 
 interface HeartRateVisualizationProps {
-  user: User;
+  user: UserType | null;
   className?: string;
 }
 
-const HeartRateVisualization: React.FC<HeartRateVisualizationProps> = ({ user, className = '' }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationRef = useRef<number>();
+const HeartRateVisualization: React.FC<HeartRateVisualizationProps> = ({ 
+  user, 
+  className = '' 
+}) => {
+  const [heartRateData, setHeartRateData] = useState<HeartRateData | null>(null);
+  const [bmiData, setBmiData] = useState<BMIData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isBeating, setIsBeating] = useState(false);
+  const [ecgPoints, setEcgPoints] = useState<number[]>([]);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const ecgIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Simulate heart rate data
-  const generateHeartRateData = () => {
-    const baseRate = 72; // Normal resting heart rate
-    const variation = 8;
-    const data: number[] = [];
+  // Calculate BMI and category
+  const calculateBMI = (weight: number, height: number) => {
+    const bmi = weight / ((height / 100) ** 2);
+    let category = '';
     
-    for (let i = 0; i < 50; i++) {
-      const rate = baseRate + Math.sin(i * 0.2) * variation + (Math.random() - 0.5) * 4;
-      data.push(Math.max(60, Math.min(100, rate)));
-    }
+    if (bmi < 18.5) category = 'Underweight';
+    else if (bmi < 25) category = 'Normal';
+    else if (bmi < 30) category = 'Overweight';
+    else category = 'Obese';
     
-    return data;
+    return { bmi: Math.round(bmi * 10) / 10, category };
   };
 
-  const heartRateData = generateHeartRateData();
-  const currentHeartRate = Math.round(heartRateData[heartRateData.length - 1]);
+  // Get BMI category color
+  const getBMIColor = (category: string) => {
+    switch (category) {
+      case 'Underweight': return { color: 'text-blue-400', bgColor: 'bg-blue-500/20', barColor: '#3b82f6' };
+      case 'Normal': return { color: 'text-green-400', bgColor: 'bg-green-500/20', barColor: '#10b981' };
+      case 'Overweight': return { color: 'text-yellow-400', bgColor: 'bg-yellow-500/20', barColor: '#f59e0b' };
+      case 'Obese': return { color: 'text-red-400', bgColor: 'bg-red-500/20', barColor: '#ef4444' };
+      default: return { color: 'text-gray-400', bgColor: 'bg-gray-500/20', barColor: '#6b7280' };
+    }
+  };
 
+  // Get BMI position on scale (0-100%)
+  const getBMIPosition = (bmi: number) => {
+    // Scale: 15 (min) to 40 (max) BMI
+    const minBMI = 15;
+    const maxBMI = 40;
+    const position = ((bmi - minBMI) / (maxBMI - minBMI)) * 100;
+    return Math.max(0, Math.min(100, position));
+  };
+
+  // Fetch heart rate and BMI data from Supabase - ONLY USER PROVIDED DATA
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!user?.id) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const fetchHealthData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch heart rate and BMI data from medical records
+        const { data: medicalData, error: medicalError } = await supabase
+          .from('medical_records')
+          .select('heart_rate, weight, height, uploaded_at')
+          .eq('user_id', user.id)
+          .or('heart_rate.not.is.null,weight.not.is.null,height.not.is.null')
+          .order('uploaded_at', { ascending: false })
+          .limit(5);
 
-    const resizeCanvas = () => {
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width * window.devicePixelRatio;
-      canvas.height = rect.height * window.devicePixelRatio;
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-    };
+        let foundHeartRate = false;
+        let foundBMI = false;
 
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
+        if (!medicalError && medicalData && medicalData.length > 0) {
+          // Look for heart rate data
+          for (const record of medicalData) {
+            if (record.heart_rate && !foundHeartRate) {
+              setHeartRateData({
+                heart_rate: record.heart_rate,
+                updated_at: record.uploaded_at,
+                source: 'Medical Record'
+              });
+              foundHeartRate = true;
+            }
 
-    let animationTime = 0;
+            // Look for BMI data (need both weight and height)
+            if (record.weight && record.height && !foundBMI) {
+              const { bmi, category } = calculateBMI(record.weight, record.height);
+              setBmiData({
+                weight: record.weight,
+                height: record.height,
+                bmi,
+                category,
+                updated_at: record.uploaded_at
+              });
+              foundBMI = true;
+            }
 
-    const animate = () => {
-      const rect = canvas.getBoundingClientRect();
-      const width = rect.width;
-      const height = rect.height;
-
-      // Clear canvas
-      ctx.clearRect(0, 0, width, height);
-
-      // Create gradient background
-      const gradient = ctx.createLinearGradient(0, 0, width, height);
-      gradient.addColorStop(0, 'rgba(59, 130, 246, 0.1)');
-      gradient.addColorStop(1, 'rgba(16, 185, 129, 0.1)');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);
-
-      // Draw heart rate line
-      ctx.beginPath();
-      ctx.strokeStyle = '#3B82F6';
-      ctx.lineWidth = 3;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-
-      const padding = 40;
-      const chartWidth = width - padding * 2;
-      const chartHeight = height - padding * 2;
-      const stepX = chartWidth / (heartRateData.length - 1);
-
-      // Normalize heart rate data to chart height
-      const minRate = Math.min(...heartRateData);
-      const maxRate = Math.max(...heartRateData);
-      const rateRange = maxRate - minRate;
-
-      heartRateData.forEach((rate, index) => {
-        const x = padding + index * stepX;
-        const normalizedRate = (rate - minRate) / rateRange;
-        const y = padding + chartHeight - (normalizedRate * chartHeight);
-
-        if (index === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
+            if (foundHeartRate && foundBMI) break;
+          }
         }
-      });
 
-      ctx.stroke();
+        // If no heart rate found in medical records, check checkups
+        if (!foundHeartRate) {
+          const { data: checkupData, error: checkupError } = await supabase
+            .from('checkups')
+            .select('vitals, created_at')
+            .eq('user_id', user.id)
+            .not('vitals', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(5);
 
-      // Draw animated pulse effect
-      const pulseX = padding + (heartRateData.length - 1) * stepX;
-      const pulseY = padding + chartHeight - ((heartRateData[heartRateData.length - 1] - minRate) / rateRange * chartHeight);
-      
-      const pulseRadius = 8 + Math.sin(animationTime * 0.1) * 4;
-      const pulseOpacity = 0.6 + Math.sin(animationTime * 0.1) * 0.4;
+          if (!checkupError && checkupData && checkupData.length > 0) {
+            for (const checkup of checkupData) {
+              if (checkup.vitals && checkup.vitals.heartRate && !foundHeartRate) {
+                setHeartRateData({
+                  heart_rate: checkup.vitals.heartRate,
+                  updated_at: checkup.created_at,
+                  source: 'Checkup'
+                });
+                foundHeartRate = true;
+              }
 
-      ctx.beginPath();
-      ctx.arc(pulseX, pulseY, pulseRadius, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(59, 130, 246, ${pulseOpacity})`;
-      ctx.fill();
+              // Check for BMI data in checkups
+              if (checkup.vitals && checkup.vitals.weight && checkup.vitals.height && !foundBMI) {
+                const { bmi, category } = calculateBMI(checkup.vitals.weight, checkup.vitals.height);
+                setBmiData({
+                  weight: checkup.vitals.weight,
+                  height: checkup.vitals.height,
+                  bmi,
+                  category,
+                  updated_at: checkup.created_at
+                });
+                foundBMI = true;
+              }
 
-      // Draw grid lines
-      ctx.strokeStyle = 'rgba(156, 163, 175, 0.3)';
-      ctx.lineWidth = 1;
+              if (foundHeartRate && foundBMI) break;
+            }
+          }
+        }
 
-      // Horizontal grid lines
-      for (let i = 0; i <= 4; i++) {
-        const y = padding + (chartHeight / 4) * i;
-        ctx.beginPath();
-        ctx.moveTo(padding, y);
-        ctx.lineTo(width - padding, y);
-        ctx.stroke();
+        // If still no data found, don't set any demo data - show "No data" state
+        if (!foundHeartRate) {
+          setHeartRateData(null);
+        }
+
+        if (!foundBMI) {
+          setBmiData(null);
+        }
+
+      } catch (error: any) {
+        console.error('Error fetching health data:', error);
+        // Don't set fallback data - show error state
+        setHeartRateData(null);
+        setBmiData(null);
+      } finally {
+        setLoading(false);
       }
-
-      // Vertical grid lines
-      for (let i = 0; i <= 10; i++) {
-        const x = padding + (chartWidth / 10) * i;
-        ctx.beginPath();
-        ctx.moveTo(x, padding);
-        ctx.lineTo(x, height - padding);
-        ctx.stroke();
-      }
-
-      animationTime += 1;
-      animationRef.current = requestAnimationFrame(animate);
     };
 
-    animate();
+    fetchHealthData();
+  }, [user?.id]);
+
+  // Set up heart beat animation based on BPM
+  useEffect(() => {
+    if (!heartRateData) return;
+
+    const bpm = heartRateData.heart_rate;
+    const beatInterval = (60 / bpm) * 1000; // Convert BPM to milliseconds
+
+    // Clear existing interval
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
+    // Start new beat animation
+    intervalRef.current = setInterval(() => {
+      setIsBeating(true);
+      setTimeout(() => setIsBeating(false), 200); // Beat duration
+    }, beatInterval);
 
     return () => {
-      window.removeEventListener('resize', resizeCanvas);
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
       }
     };
   }, [heartRateData]);
 
-  const getHeartRateStatus = (rate: number) => {
-    if (rate < 60) return { status: 'Low', color: 'text-blue-600', bg: 'bg-blue-100' };
-    if (rate > 100) return { status: 'High', color: 'text-red-600', bg: 'bg-red-100' };
-    return { status: 'Normal', color: 'text-green-600', bg: 'bg-green-100' };
+  // Generate ECG-like waveform
+  useEffect(() => {
+    if (!heartRateData) return;
+
+    const bpm = heartRateData.heart_rate;
+    const updateInterval = 50; // Update every 50ms for smooth animation
+    const pointsToShow = 150; // Increased for bigger ECG display
+
+    if (ecgIntervalRef.current) {
+      clearInterval(ecgIntervalRef.current);
+    }
+
+    ecgIntervalRef.current = setInterval(() => {
+      setEcgPoints(prev => {
+        const newPoints = [...prev];
+        
+        // Generate ECG-like pattern
+        const time = Date.now();
+        const beatPhase = (time % (60000 / bpm)) / (60000 / bpm);
+        
+        let value = 0;
+        if (beatPhase < 0.1) {
+          // P wave
+          value = Math.sin(beatPhase * Math.PI * 10) * 0.3;
+        } else if (beatPhase < 0.2) {
+          // QRS complex
+          value = Math.sin((beatPhase - 0.1) * Math.PI * 50) * 1.5;
+        } else if (beatPhase < 0.4) {
+          // T wave
+          value = Math.sin((beatPhase - 0.2) * Math.PI * 5) * 0.5;
+        } else {
+          // Baseline with slight noise
+          value = (Math.random() - 0.5) * 0.1;
+        }
+        
+        newPoints.push(value);
+        
+        // Keep only the last N points
+        if (newPoints.length > pointsToShow) {
+          newPoints.shift();
+        }
+        
+        return newPoints;
+      });
+    }, updateInterval);
+
+    return () => {
+      if (ecgIntervalRef.current) {
+        clearInterval(ecgIntervalRef.current);
+      }
+    };
+  }, [heartRateData]);
+
+  const getHeartRateStatus = (bpm: number) => {
+    if (bpm < 60) return { status: 'Low', color: 'text-blue-400', bgColor: 'bg-blue-500/20' };
+    if (bpm > 100) return { status: 'High', color: 'text-red-400', bgColor: 'bg-red-500/20' };
+    return { status: 'Normal', color: 'text-green-400', bgColor: 'bg-green-500/20' };
   };
 
-  const heartRateStatus = getHeartRateStatus(currentHeartRate);
+  const formatTimeAgo = (timestamp: string) => {
+    const now = new Date();
+    const updated = new Date(timestamp);
+    const diffMs = now.getTime() - updated.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`bg-white/80 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl overflow-hidden ${className}`}
-    >
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-3">
-            <div className="p-3 bg-gradient-to-br from-red-500 to-pink-500 rounded-xl">
-              <Heart className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-gray-900">Heart Rate Monitor</h3>
-              <p className="text-gray-600">Real-time cardiovascular tracking</p>
-            </div>
-          </div>
-          
-          <div className="text-right">
-            <div className="flex items-center space-x-2">
-              <span className="text-3xl font-bold text-gray-900">{currentHeartRate}</span>
-              <span className="text-gray-600">BPM</span>
-            </div>
-            <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${heartRateStatus.bg} ${heartRateStatus.color}`}>
-              <Activity className="w-4 h-4 mr-1" />
-              {heartRateStatus.status}
-            </div>
-          </div>
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
+  };
+
+  if (loading) {
+    return (
+      <div className={`bg-white/20 backdrop-blur-xl rounded-3xl border border-white/30 shadow-2xl p-8 ${className}`}>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-400"></div>
         </div>
+      </div>
+    );
+  }
 
-        <div className="relative">
-          <canvas
-            ref={canvasRef}
-            className="w-full h-64 rounded-xl"
-            style={{ background: 'transparent' }}
-          />
-          
-          {/* Overlay stats */}
-          <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg p-3">
-            <div className="flex items-center space-x-2 text-sm">
-              <TrendingUp className="w-4 h-4 text-green-500" />
-              <span className="text-gray-700">Avg: {Math.round(heartRateData.reduce((a, b) => a + b, 0) / heartRateData.length)} BPM</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-3 gap-4">
-          <div className="text-center p-3 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600">Resting</p>
-            <p className="text-lg font-bold text-gray-900">72 BPM</p>
-          </div>
-          <div className="text-center p-3 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600">Max Today</p>
-            <p className="text-lg font-bold text-gray-900">{Math.round(Math.max(...heartRateData))} BPM</p>
-          </div>
-          <div className="text-center p-3 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600">Min Today</p>
-            <p className="text-lg font-bold text-gray-900">{Math.round(Math.min(...heartRateData))} BPM</p>
+  // Show "No Data" state if no user data is available
+  if (!heartRateData && !bmiData) {
+    return (
+      <div className={`bg-white/20 backdrop-blur-xl rounded-3xl border border-white/30 shadow-2xl p-8 ${className}`}>
+        <div className="text-center text-gray-600 space-y-4">
+          <Heart className="w-16 h-16 mx-auto mb-4 opacity-50" />
+          <h3 className="text-xl font-semibold">No Health Data Available</h3>
+          <p className="text-gray-500">Add a medical record with vitals to see your health monitoring dashboard.</p>
+          <div className="bg-blue-50 rounded-lg p-4 mt-6">
+            <p className="text-sm text-blue-700">
+              💡 <strong>Tip:</strong> Click "Add Record" and include your weight, height, heart rate, or blood pressure to start tracking your health metrics.
+            </p>
           </div>
         </div>
       </div>
-    </motion.div>
+    );
+  }
+
+  const heartRateStatus = heartRateData ? getHeartRateStatus(heartRateData.heart_rate) : null;
+  const bmiColors = bmiData ? getBMIColor(bmiData.category) : getBMIColor('Normal');
+
+  return (
+    <div className={`bg-white/20 backdrop-blur-xl rounded-3xl border border-white/30 shadow-2xl p-8 ${className}`}>
+      <div className="space-y-6 h-full">
+        {/* Header with BPM and Status - Simplified without 3D heart */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-6">
+            {heartRateData ? (
+              <>
+                <div className="text-center">
+                  <motion.div
+                    animate={{
+                      scale: isBeating ? 1.05 : 1,
+                      textShadow: isBeating ? "0 0 20px rgba(239, 68, 68, 0.8)" : "0 0 10px rgba(239, 68, 68, 0.4)"
+                    }}
+                    transition={{ duration: 0.2 }}
+                    className="text-5xl font-bold text-red-500 mb-2"
+                  >
+                    {heartRateData.heart_rate}
+                  </motion.div>
+                  <div className="text-lg text-gray-700 font-medium">BPM</div>
+                </div>
+                
+                <div className={`px-4 py-3 rounded-xl ${heartRateStatus?.bgColor} border border-gray-300/50`}>
+                  <div className="flex items-center space-x-3">
+                    <motion.div
+                      animate={{
+                        scale: isBeating ? 1.2 : 1,
+                      }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Heart className={`w-6 h-6 ${heartRateStatus?.color}`} />
+                    </motion.div>
+                    <div>
+                      <div className={`text-lg font-semibold ${heartRateStatus?.color}`}>
+                        {heartRateStatus?.status}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Heart Rate Status
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-center">
+                <div className="text-3xl font-bold text-gray-400 mb-2">--</div>
+                <div className="text-sm text-gray-500">No heart rate data</div>
+              </div>
+            )}
+          </div>
+
+          {/* Pulse indicator */}
+          {heartRateData && (
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <motion.div
+                  animate={{
+                    scale: isBeating ? 1.3 : 1,
+                    opacity: isBeating ? 1 : 0.6,
+                  }}
+                  transition={{ duration: 0.2 }}
+                  className="w-4 h-4 bg-red-400 rounded-full"
+                />
+                <span className="text-sm text-gray-600 font-medium">Live Monitor</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Large ECG Waveform Monitor */}
+        {heartRateData ? (
+          <div className="bg-black/90 rounded-2xl p-6 border border-gray-700/50 flex-1">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <Activity className="w-6 h-6 text-green-400" />
+                <span className="text-lg text-green-400 font-semibold">ECG Rhythm Monitor</span>
+              </div>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <motion.div
+                    animate={{
+                      scale: isBeating ? 1.3 : 1,
+                      opacity: isBeating ? 1 : 0.6,
+                    }}
+                    transition={{ duration: 0.2 }}
+                    className="w-3 h-3 bg-red-400 rounded-full"
+                  />
+                  <span className="text-sm text-gray-400">Live</span>
+                </div>
+                <div className="text-sm text-gray-500">{heartRateData.heart_rate} BPM</div>
+              </div>
+            </div>
+            
+            <div className="h-48 relative overflow-hidden rounded-xl bg-black/50">
+              <svg className="w-full h-full" viewBox="0 0 600 192">
+                <defs>
+                  <linearGradient id="ecgGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="rgba(34, 197, 94, 0)" />
+                    <stop offset="60%" stopColor="rgba(34, 197, 94, 0.6)" />
+                    <stop offset="100%" stopColor="rgba(34, 197, 94, 1)" />
+                  </linearGradient>
+                  <filter id="glow">
+                    <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                    <feMerge> 
+                      <feMergeNode in="coloredBlur"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
+                </defs>
+                
+                {/* Grid lines - Major */}
+                {Array.from({ length: 13 }).map((_, i) => (
+                  <line
+                    key={`major-v-${i}`}
+                    x1={i * 50}
+                    y1={0}
+                    x2={i * 50}
+                    y2={192}
+                    stroke="rgba(34, 197, 94, 0.2)"
+                    strokeWidth="1"
+                  />
+                ))}
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <line
+                    key={`major-h-${i}`}
+                    x1={0}
+                    y1={i * 24}
+                    x2={600}
+                    y2={i * 24}
+                    stroke="rgba(34, 197, 94, 0.2)"
+                    strokeWidth="1"
+                  />
+                ))}
+                
+                {/* Grid lines - Minor */}
+                {Array.from({ length: 61 }).map((_, i) => (
+                  <line
+                    key={`minor-v-${i}`}
+                    x1={i * 10}
+                    y1={0}
+                    x2={i * 10}
+                    y2={192}
+                    stroke="rgba(34, 197, 94, 0.1)"
+                    strokeWidth="0.5"
+                  />
+                ))}
+                {Array.from({ length: 33 }).map((_, i) => (
+                  <line
+                    key={`minor-h-${i}`}
+                    x1={0}
+                    y1={i * 6}
+                    x2={600}
+                    y2={i * 6}
+                    stroke="rgba(34, 197, 94, 0.1)"
+                    strokeWidth="0.5"
+                  />
+                ))}
+                
+                {/* ECG Line */}
+                <polyline
+                  points={ecgPoints.map((point, index) => 
+                    `${(index / ecgPoints.length) * 600},${96 - point * 40}`
+                  ).join(' ')}
+                  fill="none"
+                  stroke="url(#ecgGradient)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  filter="url(#glow)"
+                />
+                
+                {/* Scanning line */}
+                <motion.line
+                  x1={ecgPoints.length > 0 ? (ecgPoints.length / 150) * 600 : 0}
+                  y1={0}
+                  x2={ecgPoints.length > 0 ? (ecgPoints.length / 150) * 600 : 0}
+                  y2={192}
+                  stroke="rgba(34, 197, 94, 0.8)"
+                  strokeWidth="2"
+                  animate={{
+                    opacity: [0.3, 1, 0.3],
+                  }}
+                  transition={{
+                    duration: 1,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                />
+              </svg>
+            </div>
+
+            {/* ECG Info */}
+            <div className="mt-4 flex items-center justify-between text-sm">
+              <div className="flex items-center space-x-6">
+                <div className="flex items-center space-x-2 text-gray-400">
+                  <Clock className="w-4 h-4" />
+                  <span>Updated {formatTimeAgo(heartRateData.updated_at)}</span>
+                </div>
+                <div className="flex items-center space-x-2 text-gray-400">
+                  <TrendingUp className="w-4 h-4" />
+                  <span>Source: {heartRateData.source}</span>
+                </div>
+              </div>
+              <div className="text-green-400 font-medium">
+                Lead II • 25mm/s • 10mm/mV
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-black/90 rounded-2xl p-6 border border-gray-700/50 flex-1 flex items-center justify-center">
+            <div className="text-center text-gray-500">
+              <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">No Heart Rate Data</p>
+              <p className="text-sm">Add a medical record with heart rate to see ECG monitoring</p>
+            </div>
+          </div>
+        )}
+
+        {/* BMI Data Meter - Only show if user has provided both weight and height */}
+        {bmiData && (
+          <div className="bg-gradient-to-br from-gray-900/90 via-gray-800/90 to-gray-900/90 rounded-2xl p-6 border border-gray-700/50">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <Scale className="w-6 h-6 text-purple-400" />
+                <span className="text-lg text-purple-400 font-semibold">BMI Monitor</span>
+              </div>
+              <div className="flex items-center space-x-4">
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-white">{bmiData.bmi}</div>
+                  <div className={`text-sm font-medium ${bmiColors.color}`}>{bmiData.category}</div>
+                </div>
+                <div className={`p-3 rounded-full ${bmiColors.bgColor} border border-gray-600/50`}>
+                  <User className={`w-6 h-6 ${bmiColors.color}`} />
+                </div>
+              </div>
+            </div>
+
+            {/* BMI Scale */}
+            <div className="space-y-4">
+              <div className="relative h-8 bg-gray-700/50 rounded-full overflow-hidden">
+                {/* BMI Scale Background */}
+                <div className="absolute inset-0 flex">
+                  <div className="flex-1 bg-blue-500" style={{ width: '18.5%' }}></div>
+                  <div className="flex-1 bg-green-500" style={{ width: '25%' }}></div>
+                  <div className="flex-1 bg-yellow-500" style={{ width: '30%' }}></div>
+                  <div className="flex-1 bg-red-500" style={{ width: '26.5%' }}></div>
+                </div>
+
+                {/* BMI Indicator */}
+                <motion.div
+                  initial={{ left: '0%' }}
+                  animate={{ left: `${getBMIPosition(bmiData.bmi)}%` }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                  className="absolute top-0 bottom-0 w-1 bg-white shadow-lg"
+                  style={{ transform: 'translateX(-50%)' }}
+                >
+                  <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-white"></div>
+                </motion.div>
+              </div>
+
+              {/* BMI Scale Labels */}
+              <div className="flex justify-between text-xs text-gray-400">
+                <div className="text-center">
+                  <div className="text-blue-400 font-medium">Underweight</div>
+                  <div>{'<'} 18.5</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-green-400 font-medium">Normal</div>
+                  <div>18.5 - 24.9</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-yellow-400 font-medium">Overweight</div>
+                  <div>25.0 - 29.9</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-red-400 font-medium">Obese</div>
+                  <div>≥ 30.0</div>
+                </div>
+              </div>
+
+              {/* BMI Details */}
+              <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-700/50">
+                <div className="text-center">
+                  <div className="text-gray-400 text-sm">Weight</div>
+                  <div className="text-white font-semibold">{bmiData.weight} kg</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-gray-400 text-sm">Height</div>
+                  <div className="text-white font-semibold">{bmiData.height} cm</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-gray-400 text-sm">Updated</div>
+                  <div className="text-white font-semibold">{formatTimeAgo(bmiData.updated_at)}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
