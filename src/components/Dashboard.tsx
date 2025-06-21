@@ -412,8 +412,36 @@ const Dashboard: React.FC<DashboardProps> = ({
                       </GlassmorphicCard>
                     </div>
 
-                    {/* Heart Rate Visualization */}
-                    <HeartRateVisualization user={user} className="min-h-[400px]" />
+                    {/* Navigation Tabs Above ECG */}
+                    <div className="bg-white/20 backdrop-blur-xl rounded-2xl border border-white/30 shadow-lg p-6">
+                      <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-xl font-bold text-gray-900">Health Monitoring Dashboard</h3>
+                        <div className="flex items-center space-x-2">
+                          {tabs.map((tab) => {
+                            const Icon = tab.icon;
+                            return (
+                              <motion.button
+                                key={tab.id}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => setActiveTab(tab.id as any)}
+                                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
+                                  activeTab === tab.id
+                                    ? 'bg-gradient-to-r from-blue-500 to-teal-500 text-white shadow-md'
+                                    : 'bg-white/50 text-gray-700 hover:bg-white/70'
+                                }`}
+                              >
+                                <Icon className="w-4 h-4" />
+                                <span className="font-medium text-sm">{tab.label}</span>
+                              </motion.button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Heart Rate Visualization */}
+                      <HeartRateVisualization user={user} className="min-h-[400px]" />
+                    </div>
 
                     {/* Recent Medical Records */}
                     <GlassmorphicCard className="p-6">
