@@ -39,70 +39,6 @@ export const usePrescriptionStorage = (userId: string | null) => {
     return null;
   };
 
-  // Ensure storage bucket exists for prescriptions
-  const ensurePrescriptionsBucket = async () => {
-    try {
-      const { data: buckets, error } = await supabase.storage.listBuckets();
-      
-      if (error) {
-        console.error('Error checking buckets:', error);
-        return;
-      }
-
-      const prescriptionsBucket = buckets?.find(bucket => bucket.name === 'prescriptions');
-      
-      if (!prescriptionsBucket) {
-        console.log('prescriptions bucket not found, attempting to create...');
-        await createPrescriptionsBucket();
-      } else {
-        console.log('prescriptions bucket exists');
-      }
-    } catch (error) {
-      console.error('Error ensuring prescriptions bucket:', error);
-    }
-  };
-
-  // Create prescriptions storage bucket
-  const createPrescriptionsBucket = async () => {
-    try {
-      const { data, error } = await supabase.storage.createBucket('prescriptions', {
-        public: false, // Private bucket for security
-        allowedMimeTypes: ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'],
-        fileSizeLimit: 10485760 // 10MB limit
-      });
-
-      if (error) {
-        console.error('Error creating prescriptions bucket:', error);
-        throw error;
-      }
-
-      console.log('Prescriptions storage bucket created successfully:', data);
-      
-      // Set up storage policies for the new bucket
-      await setupPrescriptionStoragePolicies();
-      
-    } catch (error) {
-      console.error('Error in createPrescriptionsBucket:', error);
-      throw error;
-    }
-  };
-
-  // Setup storage policies for prescriptions bucket
-  const setupPrescriptionStoragePolicies = async () => {
-    try {
-      // Note: Storage policies need to be set up via Supabase dashboard or SQL
-      // This is a placeholder for the policy setup
-      console.log('Prescription storage policies should be set up via Supabase dashboard');
-      console.log('Required policies for prescriptions bucket:');
-      console.log('1. Allow authenticated users to INSERT their own prescription files');
-      console.log('2. Allow authenticated users to SELECT their own prescription files');
-      console.log('3. Allow authenticated users to UPDATE their own prescription files');
-      console.log('4. Allow authenticated users to DELETE their own prescription files');
-    } catch (error) {
-      console.error('Error setting up prescription storage policies:', error);
-    }
-  };
-
   // Upload prescription file to Supabase Storage
   const uploadPrescription = async (file: File): Promise<UploadedPrescription> => {
     if (!userId) {
@@ -118,16 +54,13 @@ export const usePrescriptionStorage = (userId: string | null) => {
     setUploading(true);
 
     try {
-      // First, ensure we have a storage bucket
-      await ensurePrescriptionsBucket();
-
       // Generate unique filename
       const fileExt = file.name.split('.').pop()?.toLowerCase();
       const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
 
       console.log('Uploading prescription file:', fileName);
 
-      // Upload file to Supabase Storage
+      // Upload file to Supabase Storage (assumes bucket exists)
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('prescriptions')
         .upload(fileName, file, {
@@ -137,29 +70,7 @@ export const usePrescriptionStorage = (userId: string | null) => {
 
       if (uploadError) {
         console.error('Error uploading file:', uploadError);
-        
-        // If bucket doesn't exist, try to create it and retry
-        if (uploadError.message.includes('Bucket not found')) {
-          console.log('Bucket not found, attempting to create...');
-          await createPrescriptionsBucket();
-          
-          // Retry upload
-          const { data: retryData, error: retryError } = await supabase.storage
-            .from('prescriptions')
-            .upload(fileName, file, {
-              cacheControl: '3600',
-              upsert: false
-            });
-            
-          if (retryError) {
-            console.error('Retry upload failed:', retryError);
-            throw retryError;
-          }
-          
-          console.log('File uploaded successfully on retry');
-        } else {
-          throw new Error(`Upload failed: ${uploadError.message}`);
-        }
+        throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
       // Get signed URL for private access

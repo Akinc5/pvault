@@ -281,10 +281,7 @@ export const useMedicalData = (userId: string | null) => {
       const fileExt = file.name.split('.').pop();
       const fileName = `${userId}/${recordId}-${Date.now()}.${fileExt}`;
 
-      // First, ensure we have a storage bucket
-      await ensureStorageBucket();
-
-      // Upload file to Supabase Storage
+      // Upload file to Supabase Storage (assumes bucket exists)
       const { data, error } = await supabase.storage
         .from('medical-files')
         .upload(fileName, file, {
@@ -294,29 +291,7 @@ export const useMedicalData = (userId: string | null) => {
 
       if (error) {
         console.error('Error uploading file:', error);
-        
-        // If bucket doesn't exist, try to create it and retry
-        if (error.message.includes('Bucket not found')) {
-          console.log('Bucket not found, attempting to create...');
-          await createStorageBucket();
-          
-          // Retry upload
-          const { data: retryData, error: retryError } = await supabase.storage
-            .from('medical-files')
-            .upload(fileName, file, {
-              cacheControl: '3600',
-              upsert: false
-            });
-            
-          if (retryError) {
-            console.error('Retry upload failed:', retryError);
-            throw retryError;
-          }
-          
-          console.log('File uploaded successfully on retry');
-        } else {
-          throw error;
-        }
+        throw error;
       }
 
       // Get signed URL for secure access
@@ -362,70 +337,6 @@ export const useMedicalData = (userId: string | null) => {
       // Don't throw error, just log it and return null
       console.warn('File upload failed, continuing without file');
       return null;
-    }
-  };
-
-  // Ensure storage bucket exists
-  const ensureStorageBucket = async () => {
-    try {
-      const { data: buckets, error } = await supabase.storage.listBuckets();
-      
-      if (error) {
-        console.error('Error checking buckets:', error);
-        return;
-      }
-
-      const medicalFilesBucket = buckets?.find(bucket => bucket.name === 'medical-files');
-      
-      if (!medicalFilesBucket) {
-        console.log('medical-files bucket not found, attempting to create...');
-        await createStorageBucket();
-      } else {
-        console.log('medical-files bucket exists');
-      }
-    } catch (error) {
-      console.error('Error ensuring storage bucket:', error);
-    }
-  };
-
-  // Create storage bucket
-  const createStorageBucket = async () => {
-    try {
-      const { data, error } = await supabase.storage.createBucket('medical-files', {
-        public: false, // Private bucket for security
-        allowedMimeTypes: ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'],
-        fileSizeLimit: 10485760 // 10MB limit
-      });
-
-      if (error) {
-        console.error('Error creating storage bucket:', error);
-        throw error;
-      }
-
-      console.log('Storage bucket created successfully:', data);
-      
-      // Set up storage policies for the new bucket
-      await setupStoragePolicies();
-      
-    } catch (error) {
-      console.error('Error in createStorageBucket:', error);
-      throw error;
-    }
-  };
-
-  // Setup storage policies for the bucket
-  const setupStoragePolicies = async () => {
-    try {
-      // Note: Storage policies need to be set up via Supabase dashboard or SQL
-      // This is a placeholder for the policy setup
-      console.log('Storage policies should be set up via Supabase dashboard');
-      console.log('Required policies:');
-      console.log('1. Allow authenticated users to INSERT their own files');
-      console.log('2. Allow authenticated users to SELECT their own files');
-      console.log('3. Allow authenticated users to UPDATE their own files');
-      console.log('4. Allow authenticated users to DELETE their own files');
-    } catch (error) {
-      console.error('Error setting up storage policies:', error);
     }
   };
 
