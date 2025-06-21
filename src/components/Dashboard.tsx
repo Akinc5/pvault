@@ -18,12 +18,11 @@ import {
   Menu,
   X,
   Bot,
-  Sparkles
+  Sparkles,
+  FolderOpen
 } from 'lucide-react';
 import { User, MedicalRecord, TimelineEvent } from '../types';
-import MedicalTimeline from './MedicalTimeline';
-import PrescriptionUpload from './PrescriptionUpload/PrescriptionUpload';
-import HeartRateVisualization from './3D/HeartRateVisualization';
+import RecordsSection from './RecordsSection';
 import ChatBot from './ChatBot/ChatBot';
 import GlassmorphicCard from './GlassmorphicCard';
 
@@ -50,7 +49,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   onAddRecord,
   onUploadFile,
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'timeline' | 'prescriptions'>('overview');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'records'>('dashboard');
   const [showAddRecord, setShowAddRecord] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [newRecord, setNewRecord] = useState({
@@ -156,9 +155,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   const healthSummary = getHealthSummary();
 
   const sidebarItems = [
-    { id: 'overview', label: 'Overview', icon: Activity },
-    { id: 'timeline', label: 'Medical Timeline', icon: Clock },
-    { id: 'prescriptions', label: 'Prescriptions', icon: Pill },
+    { id: 'dashboard', label: 'Dashboard', icon: Activity, description: 'Health overview' },
+    { id: 'records', label: 'Medical Records', icon: FolderOpen, description: 'Complete health records' },
   ];
 
   return (
@@ -239,7 +237,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                 }`}
               >
                 <item.icon className="w-5 h-5" />
-                <span className="font-medium">{item.label}</span>
+                <div className="text-left">
+                  <div className="font-medium">{item.label}</div>
+                  <div className={`text-xs ${activeTab === item.id ? 'text-blue-100' : 'text-gray-500'}`}>
+                    {item.description}
+                  </div>
+                </div>
               </motion.button>
             ))}
           </div>
@@ -305,9 +308,9 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="flex-1 overflow-auto">
           <div className="p-6 lg:p-8">
             <AnimatePresence mode="wait">
-              {activeTab === 'overview' && (
+              {activeTab === 'dashboard' && (
                 <motion.div
-                  key="overview"
+                  key="dashboard"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
@@ -383,30 +386,44 @@ const Dashboard: React.FC<DashboardProps> = ({
                     </GlassmorphicCard>
                   </div>
 
-                  {/* Heart Rate Visualization */}
-                  <HeartRateVisualization user={user} className="h-96" />
+                  {/* Quick Access to Records */}
+                  <GlassmorphicCard className="p-8">
+                    <div className="text-center">
+                      <div className="w-20 h-20 bg-gradient-to-br from-blue-400 to-teal-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <FolderOpen className="w-10 h-10 text-white" />
+                      </div>
+                      <h3 className="text-2xl font-bold text-gray-900 mb-3">Access Your Medical Records</h3>
+                      <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
+                        View your complete medical history, upload new documents, and manage prescriptions all in one secure location.
+                      </p>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setActiveTab('records')}
+                        className="px-8 py-4 bg-gradient-to-r from-blue-500 via-indigo-500 to-teal-500 text-white rounded-xl hover:shadow-lg transition-all duration-200 font-semibold text-lg"
+                      >
+                        Open Medical Records
+                      </motion.button>
+                    </div>
+                  </GlassmorphicCard>
                 </motion.div>
               )}
 
-              {activeTab === 'timeline' && (
+              {activeTab === 'records' && (
                 <motion.div
-                  key="timeline"
+                  key="records"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                 >
-                  <MedicalTimeline events={timelineEvents} />
-                </motion.div>
-              )}
-
-              {activeTab === 'prescriptions' && (
-                <motion.div
-                  key="prescriptions"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                >
-                  <PrescriptionUpload userId={user.id} />
+                  <RecordsSection
+                    user={user}
+                    records={records}
+                    timelineEvents={timelineEvents}
+                    loading={loading}
+                    onAddRecord={onAddRecord}
+                    onUploadFile={onUploadFile}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -613,7 +630,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       <ChatBot 
         user={user} 
         medicalRecords={records}
-        currentPage="dashboard"
+        currentPage={activeTab}
       />
     </div>
   );
