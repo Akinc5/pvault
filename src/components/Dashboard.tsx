@@ -241,7 +241,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               </motion.div>
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-teal-600 bg-clip-text text-transparent">
-                  Patient Vault
+                  Patient Vault 3D
                 </h1>
                 <p className="text-sm text-gray-600">Secure Medical Records</p>
               </div>
