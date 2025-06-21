@@ -232,7 +232,7 @@ Remember: You are a supportive medical AI assistant, not a replacement for profe
   }
 };
 
-// Enhanced Google Gemini API integration (Secondary Fallback)
+// Fixed Google Gemini API integration (Secondary Fallback)
 const callGemini = async (messages: any[], userContext: string, retryCount = 0): Promise<string> => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   const maxRetries = 3;
@@ -245,11 +245,18 @@ const callGemini = async (messages: any[], userContext: string, retryCount = 0):
   try {
     console.log(`🔄 Calling Gemini API (attempt ${retryCount + 1}/${maxRetries})...`);
     
-    const prompt = `You are Dr. AIVA, an AI Virtual Medical Assistant. You provide helpful, empathetic medical and mental health guidance while always emphasizing the importance of professional medical care.
+    // Validate input before sending
+    const userMessage = messages[messages.length - 1]?.content;
+    if (!userMessage || typeof userMessage !== 'string' || userMessage.trim().length === 0) {
+      throw new Error('Invalid or empty user message');
+    }
+
+    // Build the prompt with context
+    const fullPrompt = `You are Dr. AIVA, an AI Virtual Medical Assistant. You provide helpful, empathetic medical and mental health guidance while always emphasizing the importance of professional medical care.
 
 User Context: ${userContext}
 
-User Message: ${messages[messages.length - 1].content}
+User Message: ${userMessage}
 
 Provide a helpful, medically-informed response that:
 - Addresses the user's concern with empathy
@@ -261,45 +268,137 @@ Provide a helpful, medically-informed response that:
 
 Remember: You cannot diagnose, prescribe medications, or replace professional medical care.`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+    // Use the correct Gemini API endpoint and format
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    
+    const requestBody = {
+      contents: [
+        {
+          parts: [
+            {
+              text: fullPrompt
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        maxOutputTokens: 800,
+        temperature: 0.7,
+        topP: 0.8,
+        topK: 40
+      },
+      safetySettings: [
+        {
+          category: "HARM_CATEGORY_HARASSMENT",
+          threshold: "BLOCK_MEDIUM_AND_ABOVE"
+        },
+        {
+          category: "HARM_CATEGORY_HATE_SPEECH",
+          threshold: "BLOCK_MEDIUM_AND_ABOVE"
+        },
+        {
+          category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+          threshold: "BLOCK_MEDIUM_AND_ABOVE"
+        },
+        {
+          category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+          threshold: "BLOCK_MEDIUM_AND_ABOVE"
+        }
+      ]
+    };
+
+    // Log request details in development
+    if (import.meta.env.DEV) {
+      console.log('🔍 Gemini API Request:', {
+        url,
+        body: JSON.stringify(requestBody, null, 2)
+      });
+    }
+
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          maxOutputTokens: 800,
-          temperature: 0.7,
-        }
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      
+      // Log detailed error information in development
+      if (import.meta.env.DEV) {
+        console.error('🚨 Gemini API Error Details:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorData,
+          requestBody
+        });
+      }
+      
       console.error(`Gemini API error on attempt ${retryCount + 1}:`, response.status, errorData);
       
-      if (response.status === 429 && retryCount < maxRetries - 1) {
+      // Handle specific error types
+      if (response.status === 400) {
+        if (errorData.error?.message?.includes('API key')) {
+          throw new Error('Invalid Gemini API key. Please check your configuration.');
+        } else if (errorData.error?.message?.includes('quota')) {
+          throw new Error('Gemini API quota exceeded. Please check your usage limits.');
+        } else {
+          throw new Error(`Invalid request sent to Gemini: ${errorData.error?.message || 'Bad request format'}`);
+        }
+      } else if (response.status === 429 && retryCount < maxRetries - 1) {
         const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff
         console.log(`⏳ Gemini rate limited, retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         return callGemini(messages, userContext, retryCount + 1);
+      } else if (response.status === 401) {
+        throw new Error('Gemini API authentication failed. Please check your API key.');
+      } else if (response.status === 403) {
+        throw new Error('Gemini API access forbidden. Please check your API key permissions.');
       } else {
-        throw new Error(`Gemini API error: ${response.status}`);
+        throw new Error(`Gemini API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
       }
     }
 
     const data = await response.json();
+    
+    // Log response in development
+    if (import.meta.env.DEV) {
+      console.log('🔍 Gemini API Response:', data);
+    }
+    
+    // Validate response structure
+    if (!data.candidates || !Array.isArray(data.candidates) || data.candidates.length === 0) {
+      throw new Error('Invalid response format from Gemini: no candidates found');
+    }
+    
+    const candidate = data.candidates[0];
+    if (!candidate.content || !candidate.content.parts || !Array.isArray(candidate.content.parts) || candidate.content.parts.length === 0) {
+      throw new Error('Invalid response format from Gemini: no content parts found');
+    }
+    
+    const responseText = candidate.content.parts[0].text;
+    if (!responseText || typeof responseText !== 'string') {
+      throw new Error('Invalid response format from Gemini: no text content found');
+    }
+    
     console.log('✅ Gemini API call successful');
-    return data.candidates[0]?.content?.parts[0]?.text || 'I apologize, but I couldn\'t generate a response. Please try again.';
+    return responseText;
     
   } catch (error: any) {
     console.error('Gemini API error:', error);
-    throw error;
+    
+    // Provide user-friendly error messages
+    if (error.message.includes('Invalid request sent to Gemini')) {
+      throw new Error('Invalid request sent to Gemini. Please check your message and try again.');
+    } else if (error.message.includes('API key')) {
+      throw new Error('Gemini API configuration error. Please check your API key.');
+    } else if (error.message.includes('quota')) {
+      throw new Error('Gemini API quota exceeded. Please try again later.');
+    } else {
+      throw error;
+    }
   }
 };
 
