@@ -234,77 +234,81 @@ const Dashboard: React.FC<DashboardProps> = ({
               </div>
             </div>
             
+            {/* Patient Card with Allergies */}
             <div className="bg-gradient-to-r from-blue-50 to-teal-50 rounded-xl p-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-teal-500 rounded-full flex items-center justify-center">
+              <div className="flex items-start space-x-3 mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-teal-500 rounded-full flex items-center justify-center flex-shrink-0">
                   <UserIcon className="w-6 h-6 text-white" />
                 </div>
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900">{getGreeting()}</p>
-                  <p className="text-lg font-bold text-gray-800">{user.name}</p>
+                  <p className="text-lg font-bold text-gray-800 truncate">{user.name}</p>
                   <p className="text-sm text-gray-600">{user.age} years • {user.bloodType}</p>
                 </div>
               </div>
+              
+              {/* Allergies Section */}
+              {user.allergies && user.allergies.length > 0 ? (
+                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                    <span className="text-sm font-semibold text-yellow-800">Allergies</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {user.allergies.map((allergy, index) => (
+                      <span 
+                        key={index}
+                        className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full font-medium"
+                      >
+                        {allergy}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <Shield className="w-4 h-4 text-green-600" />
+                    <span className="text-sm font-medium text-green-800">No known allergies</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Navigation Tabs */}
-          <div className="p-6 space-y-2 flex-1 overflow-y-auto">
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Navigation</h3>
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <motion.button
-                  key={tab.id}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                    activeTab === tab.id
-                      ? 'bg-gradient-to-r from-blue-500 to-teal-500 text-white shadow-lg'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span className="font-medium">{tab.label}</span>
-                </motion.button>
-              );
-            })}
+          {/* Quick Actions */}
+          <div className="p-6 space-y-3 flex-1 overflow-y-auto">
+            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Quick Actions</h3>
+            
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowAddRecord(true)}
+              className="w-full flex items-center space-x-3 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:shadow-lg transition-all duration-200"
+            >
+              <Plus className="w-5 h-5" />
+              <span className="font-medium">Add Record</span>
+            </motion.button>
 
-            {/* Quick Actions */}
-            <div className="pt-6 space-y-3">
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Quick Actions</h3>
-              
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setShowAddRecord(true)}
-                className="w-full flex items-center space-x-3 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:shadow-lg transition-all duration-200"
-              >
-                <Plus className="w-5 h-5" />
-                <span className="font-medium">Add Record</span>
-              </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={onEmergency}
+              className="w-full flex items-center space-x-3 px-4 py-3 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-xl hover:shadow-lg transition-all duration-200"
+            >
+              <AlertTriangle className="w-5 h-5" />
+              <span className="font-medium">Emergency</span>
+            </motion.button>
 
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={onEmergency}
-                className="w-full flex items-center space-x-3 px-4 py-3 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-xl hover:shadow-lg transition-all duration-200"
-              >
-                <AlertTriangle className="w-5 h-5" />
-                <span className="font-medium">Emergency</span>
-              </motion.button>
-
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={onShare}
-                className="w-full flex items-center space-x-3 px-4 py-3 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-xl hover:shadow-lg transition-all duration-200"
-              >
-                <Share2 className="w-5 h-5" />
-                <span className="font-medium">Share Access</span>
-              </motion.button>
-            </div>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={onShare}
+              className="w-full flex items-center space-x-3 px-4 py-3 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-xl hover:shadow-lg transition-all duration-200"
+            >
+              <Share2 className="w-5 h-5" />
+              <span className="font-medium">Share Access</span>
+            </motion.button>
           </div>
 
           {/* User Actions */}
