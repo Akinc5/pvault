@@ -7,22 +7,19 @@ interface Message {
   timestamp: Date;
 }
 
-// OpenRouter API integration with multiple model support
+// Enhanced OpenRouter API integration (Primary AI Service)
 const callOpenRouter = async (messages: any[], userContext: string): Promise<string> => {
   const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
   
   if (!apiKey) {
-    console.warn('OpenRouter API key not configured, using enhanced fallback responses');
-    return generateEnhancedFallbackResponse(messages[messages.length - 1].content, userContext);
+    console.warn('OpenRouter API key not configured, trying fallback services...');
+    throw new Error('OpenRouter API key not configured');
   }
 
-  // Retry logic with exponential backoff
-  const maxRetries = 3;
-  const baseDelay = 1000; // 1 second base delay
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const systemPrompt = `You are Dr. AIVA, an advanced AI Virtual Medical Assistant for a medical records app called Patient Vault. You are a compassionate, knowledgeable, and professional medical AI assistant.
+  try {
+    console.log('🚀 Calling OpenRouter API...');
+    
+    const systemPrompt = `You are Dr. AIVA, an advanced AI Virtual Medical Assistant for a medical records app called Patient Vault. You are a compassionate, knowledgeable, and professional medical AI assistant.
 
 CORE IDENTITY:
 - You are Dr. AIVA (AI Virtual Assistant)
@@ -61,123 +58,81 @@ ${userContext}
 
 Remember: You are a supportive medical AI assistant, not a replacement for professional medical care. Always encourage users to consult healthcare providers for personalized medical advice.`;
 
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'HTTP-Referer': window.location.origin,
-          'X-Title': 'Patient Vault - AI Medical Assistant',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'anthropic/claude-3-haiku', // Fast, cost-effective model
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...messages
-          ],
-          max_tokens: 800,
-          temperature: 0.7,
-          top_p: 0.9,
-          frequency_penalty: 0.1,
-          presence_penalty: 0.1,
-        }),
-      });
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://patient-vault.com',
+        'X-Title': 'Patient Vault - AI Medical Assistant'
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-4o-mini', // Cost-effective and fast model
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...messages
+        ],
+        max_tokens: 800,
+        temperature: 0.7,
+        presence_penalty: 0.1,
+        frequency_penalty: 0.1,
+        stream: false
+      }),
+    });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error(`OpenRouter API Error (attempt ${attempt + 1}/${maxRetries + 1}):`, response.status, errorData);
-        
-        if (response.status === 401) {
-          throw new Error('Invalid OpenRouter API key. Please check your API key configuration.');
-        } else if (response.status === 402) {
-          throw new Error('OpenRouter account has insufficient credits. Please add credits to continue.');
-        } else if (response.status === 429) {
-          // Rate limit error - check if we should retry
-          if (attempt < maxRetries) {
-            const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff: 1s, 2s, 4s
-            console.log(`Rate limit hit, retrying in ${delay}ms... (attempt ${attempt + 2}/${maxRetries + 1})`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue; // Retry the request
-          } else {
-            throw new Error('RATE_LIMIT_EXCEEDED');
-          }
-        } else if (response.status === 500) {
-          throw new Error('OpenRouter service is temporarily unavailable. Please try again later.');
-        } else if (response.status >= 500) {
-          // Server errors - retry if we have attempts left
-          if (attempt < maxRetries) {
-            const delay = baseDelay * (attempt + 1); // Linear backoff for server errors
-            console.log(`Server error, retrying in ${delay}ms... (attempt ${attempt + 2}/${maxRetries + 1})`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
-          } else {
-            throw new Error(`OpenRouter API server error: ${response.status}`);
-          }
-        } else {
-          throw new Error(`OpenRouter API error: ${response.status}`);
-        }
-      }
-
-      const data = await response.json();
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('OpenRouter API error:', response.status, errorData);
       
-      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-        throw new Error('Invalid response format from OpenRouter API');
-      }
-
-      // Success - return the response
-      return data.choices[0].message.content || 'I apologize, but I couldn\'t generate a response. Please try again.';
-
-    } catch (error: any) {
-      console.error(`OpenRouter API error on attempt ${attempt + 1}:`, error);
-      
-      // If this is the last attempt or a non-retryable error, handle it
-      if (attempt === maxRetries || !shouldRetryError(error)) {
-        // Provide specific error messages for common issues
-        if (error.message.includes('Invalid OpenRouter API key')) {
-          return "🔑 **API Configuration Issue**\n\nIt looks like there's an issue with the OpenRouter API key configuration. Please contact support to resolve this issue.\n\nIn the meantime, I can still help with basic health questions using my built-in knowledge base!";
-        } else if (error.message.includes('insufficient credits')) {
-          return "💳 **Service Credits Needed**\n\nThe AI service requires additional credits to continue. Please contact support to resolve this issue.\n\nI can still help with many health questions using my comprehensive built-in medical knowledge!";
-        } else if (error.message === 'RATE_LIMIT_EXCEEDED') {
-          return "⏰ **Service Temporarily Busy**\n\nI'm experiencing high demand right now. **Please wait a few seconds and try asking your question again.**\n\nFor urgent medical concerns, please contact your healthcare provider directly.\n\n💡 **Tip:** I have extensive built-in medical knowledge and can still help with many health questions!";
-        } else if (error.message.includes('network') || error.message.includes('fetch')) {
-          return "🌐 **Connection Issue**\n\nI'm having trouble connecting to my advanced AI services right now. Let me help you with my built-in medical knowledge instead!\n\nWhat health topic would you like to discuss?";
-        } else if (error.message.includes('server error') || error.message.includes('unavailable')) {
-          return "🔧 **Service Temporarily Unavailable**\n\nMy advanced AI features are temporarily unavailable, but I can still help with health questions using my comprehensive medical knowledge base.\n\nWhat would you like to know about?";
-        }
-        
-        // Fallback to enhanced response system
-        return generateEnhancedFallbackResponse(messages[messages.length - 1].content, userContext);
-      }
-
-      // If we should retry, continue to next iteration
-      if (attempt < maxRetries) {
-        const delay = baseDelay * Math.pow(2, attempt);
-        console.log(`Retrying OpenRouter request in ${delay}ms... (attempt ${attempt + 2}/${maxRetries + 1})`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+      if (response.status === 429) {
+        throw new Error('rate_limit_exceeded');
+      } else if (response.status === 401) {
+        throw new Error('invalid_api_key');
+      } else if (response.status === 402) {
+        throw new Error('insufficient_credits');
+      } else {
+        throw new Error(`OpenRouter API error: ${response.status}`);
       }
     }
-  }
 
-  // This should never be reached, but just in case
-  return generateEnhancedFallbackResponse(messages[messages.length - 1].content, userContext);
+    const data = await response.json();
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      throw new Error('Invalid response format from OpenRouter');
+    }
+
+    console.log('✅ OpenRouter API call successful');
+    return data.choices[0].message.content || 'I apologize, but I couldn\'t generate a response. Please try again.';
+    
+  } catch (error: any) {
+    console.error('OpenRouter API error:', error);
+    
+    if (error.message === 'rate_limit_exceeded') {
+      throw new Error('OpenRouter rate limit exceeded. Please wait a moment before trying again.');
+    } else if (error.message === 'invalid_api_key') {
+      throw new Error('OpenRouter API key is invalid. Please check your configuration.');
+    } else if (error.message === 'insufficient_credits') {
+      throw new Error('OpenRouter account has insufficient credits. Please check your billing.');
+    } else {
+      throw error;
+    }
+  }
 };
 
-// Legacy OpenAI function (kept as fallback)
-const callOpenAI = async (messages: any[], userContext: string): Promise<string> => {
+// OpenAI API integration with retry logic (Fallback Service)
+const callOpenAI = async (messages: any[], userContext: string, retryCount = 0): Promise<string> => {
   const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+  const maxRetries = 3;
   
   if (!apiKey) {
     console.warn('OpenAI API key not configured, using enhanced fallback responses');
-    return generateEnhancedFallbackResponse(messages[messages.length - 1].content, userContext);
+    throw new Error('OpenAI API key not configured');
   }
 
-  // Retry logic with exponential backoff
-  const maxRetries = 2; // Reduced retries for fallback
-  const baseDelay = 1000;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const systemPrompt = `You are Dr. AIVA, an advanced AI Virtual Medical Assistant for a medical records app called Patient Vault. You are a compassionate, knowledgeable, and professional medical AI assistant.
+  try {
+    console.log(`🔄 Calling OpenAI API (attempt ${retryCount + 1}/${maxRetries})...`);
+    
+    const systemPrompt = `You are Dr. AIVA, an advanced AI Virtual Medical Assistant for a medical records app called Patient Vault. You are a compassionate, knowledgeable, and professional medical AI assistant.
 
 CORE IDENTITY:
 - You are Dr. AIVA (AI Virtual Assistant)
@@ -216,118 +171,81 @@ ${userContext}
 
 Remember: You are a supportive medical AI assistant, not a replacement for professional medical care. Always encourage users to consult healthcare providers for personalized medical advice.`;
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...messages
-          ],
-          max_tokens: 800,
-          temperature: 0.7,
-          presence_penalty: 0.1,
-          frequency_penalty: 0.1,
-        }),
-      });
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini', // Using the latest efficient model
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...messages
+        ],
+        max_tokens: 800,
+        temperature: 0.7,
+        presence_penalty: 0.1,
+        frequency_penalty: 0.1,
+      }),
+    });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error(`OpenAI API Error (attempt ${attempt + 1}/${maxRetries + 1}):`, response.status, errorData);
-        
-        // Handle specific OpenAI errors
-        if (response.status === 401) {
-          throw new Error('OPENAI_INVALID_KEY');
-        } else if (response.status === 402 || (errorData.error && errorData.error.code === 'insufficient_quota')) {
-          throw new Error('OPENAI_QUOTA_EXCEEDED');
-        } else if (response.status === 429) {
-          if (attempt < maxRetries) {
-            const delay = baseDelay * Math.pow(2, attempt);
-            console.log(`OpenAI rate limit, retrying in ${delay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
-          } else {
-            throw new Error('OPENAI_RATE_LIMIT');
-          }
-        } else if (response.status >= 500) {
-          if (attempt < maxRetries) {
-            const delay = baseDelay * (attempt + 1);
-            console.log(`OpenAI server error, retrying in ${delay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
-          } else {
-            throw new Error('OPENAI_SERVER_ERROR');
-          }
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error(`OpenAI API Error (attempt ${retryCount + 1}/${maxRetries}):`, response.status, errorData);
+      
+      // Handle specific error types
+      if (response.status === 429) {
+        if (retryCount < maxRetries - 1) {
+          const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s
+          console.log(`⏳ Rate limited, retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return callOpenAI(messages, userContext, retryCount + 1);
         } else {
-          throw new Error(`OPENAI_API_ERROR_${response.status}`);
+          throw new Error('rate_limit_exceeded');
         }
-      }
-
-      const data = await response.json();
-      return data.choices[0]?.message?.content || 'I apologize, but I couldn\'t generate a response. Please try again.';
-
-    } catch (error: any) {
-      console.error(`OpenAI API error on attempt ${attempt + 1}:`, error);
-      if (attempt === maxRetries) {
-        // Handle specific OpenAI error types
-        if (error.message === 'OPENAI_QUOTA_EXCEEDED') {
-          return "💳 **OpenAI Service Quota Exceeded**\n\nThe OpenAI service has reached its usage limit. This is a temporary issue that will be resolved soon.\n\nIn the meantime, I can still help with health questions using my comprehensive built-in medical knowledge! What would you like to know about?";
-        } else if (error.message === 'OPENAI_INVALID_KEY') {
-          return "🔑 **OpenAI Configuration Issue**\n\nThere's a configuration issue with the OpenAI service. This will be resolved soon.\n\nI can still provide helpful health information using my built-in medical knowledge base! How can I help you today?";
-        } else if (error.message === 'OPENAI_RATE_LIMIT') {
-          return "⏰ **OpenAI Service Busy**\n\nThe OpenAI service is experiencing high demand. Please try again in a few moments.\n\nI can still help with health questions using my extensive medical knowledge! What's on your mind?";
-        }
-        throw error;
+      } else if (response.status === 401) {
+        throw new Error('invalid_api_key');
+      } else if (response.status === 402 || (errorData.error && errorData.error.code === 'insufficient_quota')) {
+        throw new Error('quota_exceeded');
+      } else {
+        throw new Error(`OpenAI API error: ${response.status}`);
       }
     }
-  }
 
-  return generateEnhancedFallbackResponse(messages[messages.length - 1].content, userContext);
+    const data = await response.json();
+    console.log('✅ OpenAI API call successful');
+    return data.choices[0]?.message?.content || 'I apologize, but I couldn\'t generate a response. Please try again.';
+    
+  } catch (error: any) {
+    console.error('OpenAI API error:', error);
+    
+    if (error.message === 'rate_limit_exceeded') {
+      throw new Error('OpenAI rate limit exceeded. Please wait a moment before trying again.');
+    } else if (error.message === 'invalid_api_key') {
+      throw new Error('OpenAI API key is invalid. Please check your configuration.');
+    } else if (error.message === 'quota_exceeded') {
+      throw new Error('OpenAI quota exceeded. Please check your plan and billing details.');
+    } else {
+      throw error;
+    }
+  }
 };
 
-// Helper function to determine if an error should be retried
-const shouldRetryError = (error: any): boolean => {
-  const message = error.message?.toLowerCase() || '';
-  
-  // Retry on rate limits and server errors
-  if (message.includes('rate_limit_exceeded') || 
-      message.includes('server error') || 
-      message.includes('unavailable') ||
-      message.includes('timeout') ||
-      message.includes('network')) {
-    return true;
-  }
-  
-  // Don't retry on authentication or client errors
-  if (message.includes('invalid') || 
-      message.includes('unauthorized') || 
-      message.includes('forbidden') ||
-      message.includes('insufficient credits')) {
-    return false;
-  }
-  
-  return false;
-};
-
-// Enhanced Google Gemini API integration with fixed safety settings
-const callGemini = async (messages: any[], userContext: string): Promise<string> => {
+// Enhanced Google Gemini API integration (Secondary Fallback)
+const callGemini = async (messages: any[], userContext: string, retryCount = 0): Promise<string> => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const maxRetries = 3;
   
   if (!apiKey) {
     console.warn('Gemini API key not configured, using enhanced fallback responses');
-    return generateEnhancedFallbackResponse(messages[messages.length - 1].content, userContext);
+    throw new Error('Gemini API key not configured');
   }
 
-  const maxRetries = 2; // Fewer retries for Gemini
-  const baseDelay = 1000;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const prompt = `You are Dr. AIVA, an AI Virtual Medical Assistant. You provide helpful, empathetic medical and mental health guidance while always emphasizing the importance of professional medical care.
+  try {
+    console.log(`🔄 Calling Gemini API (attempt ${retryCount + 1}/${maxRetries})...`);
+    
+    const prompt = `You are Dr. AIVA, an AI Virtual Medical Assistant. You provide helpful, empathetic medical and mental health guidance while always emphasizing the importance of professional medical care.
 
 User Context: ${userContext}
 
@@ -343,86 +261,46 @@ Provide a helpful, medically-informed response that:
 
 Remember: You cannot diagnose, prescribe medications, or replace professional medical care.`;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: prompt
-            }]
-          }],
-          generationConfig: {
-            maxOutputTokens: 800,
-            temperature: 0.7,
-          },
-          // Removed problematic safetySettings that were causing 400 errors
-          // Let Gemini use its default safety filters instead
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error(`Gemini API Error (attempt ${attempt + 1}/${maxRetries + 1}):`, response.status, errorData);
-        
-        if (response.status === 400) {
-          // Handle bad request errors
-          if (attempt < maxRetries) {
-            const delay = baseDelay * (attempt + 1);
-            console.log(`Gemini bad request, retrying with simplified prompt in ${delay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
-          } else {
-            throw new Error('GEMINI_BAD_REQUEST');
-          }
-        } else if (response.status === 429) {
-          if (attempt < maxRetries) {
-            const delay = baseDelay * (attempt + 1);
-            console.log(`Gemini rate limit, retrying in ${delay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
-          } else {
-            throw new Error('GEMINI_RATE_LIMIT');
-          }
-        } else if (response.status >= 500) {
-          if (attempt < maxRetries) {
-            const delay = baseDelay * (attempt + 1);
-            console.log(`Gemini server error, retrying in ${delay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
-          } else {
-            throw new Error('GEMINI_SERVER_ERROR');
-          }
-        } else {
-          throw new Error(`GEMINI_API_ERROR_${response.status}`);
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          maxOutputTokens: 800,
+          temperature: 0.7,
         }
-      }
+      }),
+    });
 
-      const data = await response.json();
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error(`Gemini API error on attempt ${retryCount + 1}:`, response.status, errorData);
       
-      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts) {
-        throw new Error('Invalid Gemini response format');
-      }
-      
-      return data.candidates[0].content.parts[0]?.text || 'I apologize, but I couldn\'t generate a response. Please try again.';
-
-    } catch (error: any) {
-      console.error(`Gemini API error on attempt ${attempt + 1}:`, error);
-      if (attempt === maxRetries) {
-        // Handle specific Gemini error types
-        if (error.message === 'GEMINI_BAD_REQUEST') {
-          return "🔧 **Gemini Service Configuration Issue**\n\nThe Gemini AI service is experiencing a configuration issue. This will be resolved soon.\n\nI can still provide excellent health guidance using my comprehensive medical knowledge base! What health topic would you like to explore?";
-        } else if (error.message === 'GEMINI_RATE_LIMIT') {
-          return "⏰ **Gemini Service Busy**\n\nThe Gemini AI service is experiencing high demand. Please try again in a few moments.\n\nI can still help with health questions using my extensive built-in medical knowledge! How can I assist you?";
-        }
-        return generateEnhancedFallbackResponse(messages[messages.length - 1].content, userContext);
+      if (response.status === 429 && retryCount < maxRetries - 1) {
+        const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff
+        console.log(`⏳ Gemini rate limited, retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return callGemini(messages, userContext, retryCount + 1);
+      } else {
+        throw new Error(`Gemini API error: ${response.status}`);
       }
     }
-  }
 
-  return generateEnhancedFallbackResponse(messages[messages.length - 1].content, userContext);
+    const data = await response.json();
+    console.log('✅ Gemini API call successful');
+    return data.candidates[0]?.content?.parts[0]?.text || 'I apologize, but I couldn\'t generate a response. Please try again.';
+    
+  } catch (error: any) {
+    console.error('Gemini API error:', error);
+    throw error;
+  }
 };
 
 // Enhanced fallback response system with comprehensive medical knowledge
@@ -432,59 +310,59 @@ const generateEnhancedFallbackResponse = (userInput: string, userContext: string
   // Medical knowledge base for comprehensive fallback responses
   const responses = {
     greeting: [
-      "Hello! I'm Dr. AIVA, your AI medical assistant. 👋\n\n**I'm here to help with:**\n🩺 Medical questions and symptoms\n🧠 Mental health support\n💊 Medication information\n🏃‍♂️ Lifestyle and wellness advice\n📋 Understanding your medical records\n\n**What can I help you with today?**",
-      "Hi there! I'm Dr. AIVA, ready to assist with your health questions. 😊\n\n**I can help with:**\n• Medical information and symptoms\n• Mental health and stress management\n• Lifestyle advice for better health\n• Understanding your health data\n\n**What's on your mind?**",
-      "Welcome! I'm Dr. AIVA, your virtual medical assistant. 🩺\n\n**I'm here to provide:**\n• Health information and guidance\n• Mental wellness support\n• Lifestyle recommendations\n• Medical record insights\n\n**How can I help you today?**"
+      "Hello! I'm Dr. AIVA, your AI medical assistant. 👋\n\n**I'm here to help with:**\n🩺 Medical questions\n🧠 Mental health support\n💊 Medication information\n🏃‍♂️ Lifestyle advice\n\n**Note:** I'm an AI assistant and cannot replace professional medical care. For emergencies, call 911.\n\nWhat can I help you with today?",
+      "Hi there! I'm Dr. AIVA, ready to assist with your health questions. 😊\n\n**Popular topics I can help with:**\n🧠 Mental health and stress management\n💓 Heart health and blood pressure\n💊 Medication information\n🏃‍♂️ Exercise and nutrition\n😴 Sleep improvement\n📱 Using the Patient Vault app\n\nWhat would you like to know more about?",
+      "Welcome! I'm Dr. AIVA, your virtual medical assistant. 🩺\n\n**Ask me about:**\n• Symptoms you're experiencing\n• Mental health and wellness strategies\n• Understanding medical test results\n• Healthy lifestyle tips\n• Managing chronic conditions\n• Preventive care recommendations\n\nWhat health topic is on your mind today? 🤔"
     ],
     
     stress: [
-      "🧘 **Stress Management Strategies**\n\n**Immediate Relief:**\n• **Deep breathing:** 4-7-8 technique (inhale 4, hold 7, exhale 8)\n• **Progressive muscle relaxation:** Tense and release muscle groups\n• **Mindfulness meditation:** Even 5 minutes helps\n• **Cold water:** Splash on face or drink slowly\n\n**Long-term Strategies:**\n• **Regular exercise:** 30 minutes daily reduces stress hormones\n• **Consistent sleep:** 7-9 hours nightly\n• **Limit caffeine:** Especially after 2 PM\n• **Social connection:** Talk to supportive friends/family\n• **Journaling:** Write down thoughts and feelings\n\n**When to Seek Help:**\nIf stress interferes with daily life, sleep, or relationships for more than 2 weeks, consider speaking with a mental health professional.\n\n💙 **Remember:** It's okay to ask for help. You don't have to manage stress alone."
+      "🧘 **Stress Management Strategies**\n\n**Immediate Relief:**\n• Deep breathing: 4-7-8 technique (inhale 4, hold 7, exhale 8)\n• Progressive muscle relaxation\n• Mindfulness meditation (even 5 minutes helps)\n\n**Long-term Strategies:**\n• Regular exercise (30 minutes daily)\n• Consistent sleep schedule (7-9 hours)\n• Limit caffeine and alcohol\n• Connect with supportive friends/family\n• Consider journaling or therapy\n\n**When to Seek Help:**\nIf stress interferes with daily life, sleep, or relationships, consider speaking with a mental health professional.\n\n💙 Remember: It's okay to ask for help. You don't have to manage stress alone."
     ],
     
     anxiety: [
-      "🌟 **Anxiety Support & Coping Strategies**\n\n**Immediate Techniques:**\n• **5-4-3-2-1 Grounding:** Name 5 things you see, 4 you hear, 3 you touch, 2 you smell, 1 you taste\n• **Box Breathing:** Inhale 4, hold 4, exhale 4, hold 4\n• **Cold water:** On wrists or face to activate vagus nerve\n• **Movement:** Even gentle stretching can help\n\n**Daily Management:**\n• **Regular exercise:** Reduces anxiety by 20-30%\n• **Limit caffeine:** Can trigger anxiety symptoms\n• **Sleep hygiene:** Consistent bedtime routine\n• **Mindfulness practice:** 10 minutes daily meditation\n• **Challenge negative thoughts:** Ask \"Is this realistic?\"\n\n**Professional Help:**\nConsider therapy if anxiety:\n• Interferes with work or relationships\n• Causes physical symptoms (racing heart, sweating)\n• Leads to avoidance behaviors\n• Persists for several weeks\n\n🤗 **You're not alone in this.** Anxiety is very treatable with the right support."
+      "🌟 **Anxiety Support & Coping Strategies**\n\n**Immediate Techniques:**\n• **5-4-3-2-1 Grounding:** Name 5 things you see, 4 you hear, 3 you touch, 2 you smell, 1 you taste\n• **Box Breathing:** Inhale 4, hold 4, exhale 4, hold 4\n• **Cold water** on wrists or face\n\n**Daily Management:**\n• Regular exercise (reduces anxiety by 20-30%)\n• Limit caffeine (can trigger anxiety)\n• Maintain sleep hygiene\n• Practice mindfulness or meditation\n• Challenge negative thoughts\n\n**Professional Help:**\nConsider therapy if anxiety:\n• Interferes with work/relationships\n• Causes physical symptoms\n• Leads to avoidance behaviors\n\n🤗 You're not alone in this. Anxiety is treatable and manageable."
     ],
     
     depression: [
-      "💙 **Depression Support & Resources**\n\n**Self-Care Strategies:**\n• **Movement:** Even 10-15 minutes of walking can boost mood\n• **Sunlight:** Spend time outdoors daily, especially morning light\n• **Connection:** Reach out to one person today\n• **Routine:** Small, consistent daily activities\n• **Nutrition:** Regular meals with protein and omega-3s\n• **Sleep:** Maintain consistent sleep schedule\n\n**Warning Signs to Watch:**\n• Persistent sadness (2+ weeks)\n• Loss of interest in activities you used to enjoy\n• Changes in sleep or appetite\n• Feelings of hopelessness or worthlessness\n• Difficulty concentrating\n\n**Professional Support:**\n• **Therapy:** CBT and DBT are very effective\n• **Support groups:** Connect with others who understand\n• **Medication:** Consult a psychiatrist if needed\n\n**Crisis Resources:**\n📞 **988** - National Suicide Prevention Lifeline\n💬 **Text HOME to 741741** - Crisis Text Line\n🌐 **suicidepreventionlifeline.org/chat** - Online chat\n\n🌈 **Recovery is possible.** You matter, and help is available."
+      "💙 **Depression Support & Resources**\n\n**Self-Care Strategies:**\n• **Movement:** Even 10-15 minutes of walking can help\n• **Sunlight:** Spend time outdoors daily\n• **Connection:** Reach out to one person today\n• **Routine:** Small, consistent daily activities\n• **Nutrition:** Regular meals with protein and omega-3s\n\n**Warning Signs to Watch:**\n• Persistent sadness (2+ weeks)\n• Loss of interest in activities\n• Changes in sleep/appetite\n• Feelings of hopelessness\n\n**Professional Support:**\n• Therapy (CBT, DBT are very effective)\n• Support groups\n• Medication (consult a psychiatrist)\n\n**Crisis Resources:**\n📞 **988** - National Suicide Prevention Lifeline\n💬 **Text HOME to 741741** - Crisis Text Line\n\n🌈 Recovery is possible. You matter, and help is available."
     ],
     
     bloodPressure: [
-      "📊 **Blood Pressure Information**\n\n**Understanding Your Numbers:**\n• **Normal:** Less than 120/80 mmHg\n• **Elevated:** 120-129 systolic, less than 80 diastolic\n• **Stage 1 High:** 130-139/80-89 mmHg\n• **Stage 2 High:** 140/90 mmHg or higher\n• **Crisis:** Higher than 180/120 mmHg (seek immediate care)\n\n**Natural Ways to Lower BP:**\n• **DASH Diet:** Fruits, vegetables, whole grains, lean proteins\n• **Reduce sodium:** Less than 2,300mg daily (ideally 1,500mg)\n• **Regular exercise:** 30 minutes most days\n• **Maintain healthy weight:** Even 5-10 lbs can help\n• **Limit alcohol:** No more than 1-2 drinks daily\n• **Manage stress:** Meditation, yoga, deep breathing\n• **Quit smoking:** Improves circulation immediately\n\n**Monitoring Tips:**\n• Check at same time daily\n• Rest 5 minutes before measuring\n• Use proper cuff size\n• Keep a log for your doctor\n\n⚠️ **Important:** Always consult your doctor for personalized blood pressure management and medication decisions."
+      "📊 **Blood Pressure Information**\n\n**Understanding Your Numbers:**\n• **Normal:** Less than 120/80 mmHg\n• **Elevated:** 120-129 systolic, less than 80 diastolic\n• **Stage 1 High:** 130-139/80-89 mmHg\n• **Stage 2 High:** 140/90 mmHg or higher\n• **Crisis:** Higher than 180/120 mmHg (seek immediate care)\n\n**Natural Ways to Lower BP:**\n• **DASH Diet:** Fruits, vegetables, whole grains, lean proteins\n• **Reduce sodium:** Less than 2,300mg daily (ideally 1,500mg)\n• **Regular exercise:** 30 minutes most days\n• **Maintain healthy weight**\n• **Limit alcohol:** No more than 1-2 drinks daily\n• **Manage stress:** Meditation, yoga, deep breathing\n• **Quit smoking**\n\n⚠️ **Important:** Always consult your doctor for personalized blood pressure management and medication decisions."
     ],
     
     heartRate: [
-      "💓 **Heart Rate Information**\n\n**Normal Resting Heart Rate:**\n• **Adults:** 60-100 beats per minute (bpm)\n• **Athletes:** Often 40-60 bpm (more efficient heart)\n• **Factors affecting HR:** Age, fitness, medications, caffeine, stress, temperature\n\n**When to Be Concerned:**\n• **Consistently above 100 bpm** at rest (tachycardia)\n• **Below 60 bpm** with symptoms like dizziness (bradycardia)\n• **Irregular rhythm** or palpitations\n• **Chest pain** with rapid heart rate\n• **Shortness of breath** with normal activity\n\n**Heart-Healthy Tips:**\n• **Cardiovascular exercise:** 150 minutes weekly\n• **Maintain healthy weight:** Reduces heart workload\n• **Limit caffeine:** Especially if sensitive\n• **Manage stress:** Chronic stress affects heart rhythm\n• **Don't smoke:** Damages blood vessels\n• **Get adequate sleep:** 7-9 hours nightly\n• **Stay hydrated:** Dehydration affects heart rate\n\n🚨 **Seek immediate care** if you experience chest pain, severe shortness of breath, or fainting with heart rate changes."
+      "💓 **Heart Rate Information**\n\n**Normal Resting Heart Rate:**\n• **Adults:** 60-100 beats per minute (bpm)\n• **Athletes:** Often 40-60 bpm (more efficient heart)\n• **Factors affecting HR:** Age, fitness, medications, caffeine, stress\n\n**When to Be Concerned:**\n• **Consistently above 100 bpm** at rest (tachycardia)\n• **Below 60 bpm** with symptoms like dizziness (bradycardia)\n• **Irregular rhythm** or palpitations\n• **Chest pain** with rapid heart rate\n\n**Heart-Healthy Tips:**\n• Regular cardiovascular exercise\n• Maintain healthy weight\n• Limit caffeine and alcohol\n• Manage stress effectively\n• Don't smoke\n• Get adequate sleep\n\n🚨 **Seek immediate care** if you experience chest pain, severe shortness of breath, or fainting with heart rate changes."
     ],
     
     sleep: [
-      "😴 **Sleep Hygiene & Better Rest**\n\n**Sleep Optimization:**\n• **Consistent schedule:** Same bedtime/wake time daily (even weekends)\n• **Cool environment:** 65-68°F (18-20°C)\n• **Dark room:** Blackout curtains or eye mask\n• **Comfortable mattress and pillows:** Replace every 7-10 years\n• **Quiet space:** Earplugs or white noise if needed\n\n**Pre-Sleep Routine (1-2 hours before bed):**\n• **No screens:** Blue light disrupts melatonin production\n• **Reading or gentle stretching:** Calming activities\n• **Warm bath or shower:** Helps body temperature drop\n• **Herbal tea:** Chamomile, passionflower, or valerian\n• **Relaxation techniques:** Deep breathing or meditation\n\n**Avoid:**\n• **Caffeine after 2 PM:** Can stay in system 6-8 hours\n• **Large meals 3 hours before bed:** Can cause discomfort\n• **Alcohol:** Disrupts sleep quality and REM sleep\n• **Intense exercise 4 hours before bed:** Can be stimulating\n• **Daytime naps longer than 20 minutes**\n\n**Sleep Disorders:**\nConsult a doctor if you experience:\n• Chronic insomnia (3+ weeks)\n• Loud snoring or breathing pauses\n• Excessive daytime sleepiness\n• Restless legs or frequent movement\n• Waking up gasping or choking\n\n💤 **Quality sleep is essential** for physical health, mental wellbeing, and immune function."
+      "😴 **Sleep Hygiene & Better Rest**\n\n**Sleep Optimization:**\n• **Consistent schedule:** Same bedtime/wake time daily\n• **Cool environment:** 65-68°F (18-20°C)\n• **Dark room:** Blackout curtains or eye mask\n• **Comfortable mattress and pillows**\n\n**Pre-Sleep Routine (1-2 hours before bed):**\n• No screens (blue light disrupts melatonin)\n• Reading, gentle stretching, or meditation\n• Warm bath or shower\n• Herbal tea (chamomile, passionflower)\n\n**Avoid:**\n• Caffeine after 2 PM\n• Large meals 3 hours before bed\n• Alcohol (disrupts sleep quality)\n• Intense exercise 4 hours before bed\n\n**Sleep Disorders:**\nConsult a doctor if you experience:\n• Chronic insomnia (3+ weeks)\n• Loud snoring or breathing pauses\n• Excessive daytime sleepiness\n• Restless legs\n\n💤 Quality sleep is essential for physical and mental health."
     ],
     
     nutrition: [
-      "🥗 **Nutrition & Healthy Eating**\n\n**Balanced Plate Method:**\n• **½ plate:** Non-starchy vegetables (leafy greens, broccoli, peppers, tomatoes)\n• **¼ plate:** Lean protein (fish, chicken, beans, tofu, eggs)\n• **¼ plate:** Complex carbs (quinoa, brown rice, sweet potato, whole grains)\n• **Healthy fats:** Avocado, nuts, olive oil, seeds\n\n**Key Nutrients:**\n• **Omega-3s:** Fatty fish, walnuts, flaxseeds (brain & heart health)\n• **Fiber:** 25-35g daily (digestive health, blood sugar control)\n• **Protein:** 0.8g per kg body weight (muscle maintenance)\n• **Hydration:** 8-10 glasses water daily (more if active)\n• **Vitamins & minerals:** Colorful variety of fruits and vegetables\n\n**Foods to Limit:**\n• **Processed foods:** High in sodium and preservatives\n• **Added sugars:** Limit to less than 10% of daily calories\n• **Trans fats:** Found in some fried and packaged foods\n• **Excessive saturated fats:** Limit to less than 10% of calories\n• **Excessive alcohol:** No more than 1-2 drinks daily\n\n**Meal Timing:**\n• **Don't skip breakfast:** Jumpstarts metabolism\n• **Regular meals:** Every 3-4 hours to maintain blood sugar\n• **Stop eating 2-3 hours before bed:** Aids digestion\n• **Listen to hunger/fullness cues:** Eat mindfully\n\n🍎 **Small, consistent changes** lead to lasting health improvements. Focus on progress, not perfection!"
+      "🥗 **Nutrition & Healthy Eating**\n\n**Balanced Plate Method:**\n• **½ plate:** Non-starchy vegetables (leafy greens, broccoli, peppers)\n• **¼ plate:** Lean protein (fish, chicken, beans, tofu)\n• **¼ plate:** Complex carbs (quinoa, brown rice, sweet potato)\n• **Healthy fats:** Avocado, nuts, olive oil\n\n**Key Nutrients:**\n• **Omega-3s:** Fatty fish, walnuts, flaxseeds (brain & heart health)\n• **Fiber:** 25-35g daily (digestive health, blood sugar)\n• **Protein:** 0.8g per kg body weight (muscle maintenance)\n• **Hydration:** 8-10 glasses water daily\n\n**Foods to Limit:**\n• Processed foods high in sodium\n• Added sugars and refined carbs\n• Trans fats and excessive saturated fats\n• Excessive alcohol\n\n**Meal Timing:**\n• Eat regular meals (don't skip breakfast)\n• Stop eating 2-3 hours before bed\n• Listen to hunger/fullness cues\n\n🍎 Small, consistent changes lead to lasting health improvements."
     ],
     
     medications: [
-      "💊 **Medication Information & Safety**\n\n**General Medication Guidelines:**\n• **Take as prescribed:** Don't skip doses or stop early without consulting doctor\n• **Timing matters:** Take at consistent times for best effectiveness\n• **Food interactions:** Some need food, others empty stomach - check labels\n• **Storage:** Follow label instructions (temperature, light, moisture)\n• **Expiration dates:** Don't use expired medications\n\n**Common Medication Classes:**\n• **Blood pressure meds:** ACE inhibitors, beta-blockers, diuretics\n• **Diabetes meds:** Metformin, insulin, SGLT2 inhibitors\n• **Cholesterol meds:** Statins, fibrates\n• **Antidepressants:** SSRIs, SNRIs, tricyclics\n• **Pain relievers:** NSAIDs, acetaminophen, opioids\n\n**Important Safety:**\n• **Never share** prescription medications\n• **Check interactions:** With new medications, supplements, or alcohol\n• **Report side effects:** To your doctor promptly\n• **Keep updated list:** Of all medications and dosages\n• **Use one pharmacy:** For better interaction monitoring\n\n**Medication Management:**\n• **Pill organizers:** For complex regimens\n• **Phone reminders:** For consistent timing\n• **Regular reviews:** With doctor or pharmacist\n• **Generic vs brand:** Discuss options with healthcare provider\n\n⚠️ **Critical:** Never stop medications without consulting your doctor. Sudden discontinuation can be dangerous.\n\n🏥 **For specific dosing questions, always consult your pharmacist or prescribing physician.**"
+      "💊 **Medication Information & Safety**\n\n**General Medication Guidelines:**\n• **Take as prescribed:** Don't skip doses or stop early\n• **Timing matters:** Take at consistent times\n• **Food interactions:** Some need food, others empty stomach\n• **Storage:** Follow label instructions (temperature, light)\n\n**Common Medication Classes:**\n• **Blood pressure meds:** ACE inhibitors, beta-blockers, diuretics\n• **Diabetes meds:** Metformin, insulin, SGLT2 inhibitors\n• **Cholesterol meds:** Statins, fibrates\n• **Antidepressants:** SSRIs, SNRIs, tricyclics\n\n**Important Safety:**\n• **Never share** prescription medications\n• **Check interactions** with new medications\n• **Report side effects** to your doctor\n• **Keep updated list** of all medications\n\n⚠️ **Critical:** Never stop medications without consulting your doctor. Sudden discontinuation can be dangerous.\n\n🏥 **For specific dosing questions, always consult your pharmacist or prescribing physician.**"
     ],
     
     exercise: [
-      "🏃‍♂️ **Exercise & Physical Activity**\n\n**Weekly Exercise Goals (Adults):**\n• **150 minutes** moderate aerobic activity (brisk walking, swimming, cycling)\n• **75 minutes** vigorous activity (running, HIIT, competitive sports)\n• **2+ days** strength training (all major muscle groups)\n• **Flexibility/balance** exercises (yoga, tai chi, stretching)\n\n**Starting Safely:**\n• **Begin slowly:** 10-15 minutes daily, gradually increase\n• **Warm up** (5-10 minutes) and **cool down** (5-10 minutes)\n• **Listen to your body:** Rest when needed, don't push through pain\n• **Stay hydrated:** Before, during, and after exercise\n• **Proper footwear:** Appropriate for your activity\n• **Cross-training:** Vary activities to prevent overuse injuries\n\n**Exercise Benefits:**\n• **Cardiovascular:** Reduces risk of heart disease, stroke\n• **Metabolic:** Helps prevent/manage diabetes\n• **Mental health:** Reduces depression, anxiety, improves mood\n• **Sleep quality:** Helps you fall asleep faster, sleep deeper\n• **Bone health:** Weight-bearing exercise strengthens bones\n• **Cognitive function:** Improves memory and focus\n• **Weight management:** Burns calories, builds muscle\n\n**Medical Clearance:**\nConsult your doctor before starting if you have:\n• Heart conditions or chest pain\n• Diabetes or blood sugar issues\n• High blood pressure\n• Joint problems or arthritis\n• Haven't exercised in years\n• Any chronic health conditions\n\n💪 **Every bit of movement counts.** Start where you are, use what you have, do what you can!"
+      "🏃‍♂️ **Exercise & Physical Activity**\n\n**Weekly Exercise Goals:**\n• **150 minutes** moderate aerobic activity (brisk walking, swimming)\n• **75 minutes** vigorous activity (running, cycling)\n• **2+ days** strength training (all major muscle groups)\n• **Flexibility/balance** exercises (yoga, tai chi)\n\n**Starting Safely:**\n• **Begin slowly:** 10-15 minutes daily\n• **Warm up** and cool down\n• **Listen to your body:** Rest when needed\n• **Stay hydrated**\n• **Proper footwear** and equipment\n\n**Exercise Benefits:**\n• Reduces risk of heart disease, diabetes, depression\n• Improves sleep quality and energy\n• Strengthens bones and muscles\n• Enhances mental health and cognitive function\n• Helps maintain healthy weight\n\n**Medical Clearance:**\nConsult your doctor before starting if you have:\n• Heart conditions\n• Diabetes\n• High blood pressure\n• Joint problems\n• Haven't exercised in years\n\n💪 Every bit of movement counts. Start where you are!"
     ],
     
     appHelp: [
-      "📱 **Patient Vault App Guide**\n\n**Key Features:**\n• **Add Records:** Click 'Add Record' to upload medical documents\n• **View Timeline:** See chronological health events\n• **Emergency Mode:** Quick access to critical health info\n• **Share Records:** Securely share with healthcare providers\n• **Prescription Upload:** Dedicated section for prescription management\n• **Dr. AIVA Chat:** AI medical assistant (that's me!)\n\n**Uploading Documents:**\n1. Click 'Add Record' in sidebar\n2. Fill in basic information (doctor, date, category)\n3. Add vitals if available (weight, BP, heart rate)\n4. Attach file (PDF, JPG, PNG up to 10MB)\n5. Save record\n\n**Data Security:**\n• All data encrypted and secure\n• Only you can access your records\n• HIPAA-compliant storage\n• Secure sharing with time-limited links\n\n**Tips for Best Experience:**\n• Regular backups of important documents\n• Keep emergency contact info updated\n• Use descriptive titles for easy searching\n• Include vitals data for health tracking\n• Upload prescriptions for AI analysis\n\n**Troubleshooting:**\n• **Slow loading:** Check internet connection\n• **Upload fails:** Ensure file is under 10MB\n• **Can't view file:** Try downloading instead\n• **Sync issues:** Refresh the page\n\n🔒 **Your health data privacy and security are our top priorities.**"
+      "📱 **Patient Vault App Guide**\n\n**Key Features:**\n• **Add Records:** Click 'Add Record' to upload medical documents\n• **View Timeline:** See chronological health events\n• **Emergency Mode:** Quick access to critical health info\n• **Share Records:** Securely share with healthcare providers\n• **Prescription Upload:** Dedicated section for prescription management\n\n**Uploading Documents:**\n1. Click 'Add Record' in sidebar\n2. Fill in basic information (doctor, date, category)\n3. Add vitals if available (weight, BP, heart rate)\n4. Attach file (PDF, JPG, PNG up to 10MB)\n5. Save record\n\n**Data Security:**\n• All data encrypted and secure\n• Only you can access your records\n• HIPAA-compliant storage\n• Secure sharing with time-limited links\n\n**Tips:**\n• Regular backups of important documents\n• Keep emergency contact info updated\n• Use descriptive titles for easy searching\n\n🔒 Your health data privacy and security are our top priorities."
     ],
     
     emergency: [
-      "🚨 **EMERGENCY INFORMATION**\n\n**Call 911 Immediately for:**\n• **Chest pain or pressure** lasting more than a few minutes\n• **Difficulty breathing** or shortness of breath\n• **Severe bleeding** that won't stop\n• **Loss of consciousness** or fainting\n• **Stroke symptoms:** FAST (Face drooping, Arm weakness, Speech difficulty, Time to call)\n• **Severe allergic reactions** (anaphylaxis)\n• **Poisoning** or overdose\n• **Severe burns** or trauma\n• **Suicidal thoughts** with immediate plan\n\n**Mental Health Crisis:**\n📞 **988** - National Suicide Prevention Lifeline (24/7)\n💬 **Text HOME to 741741** - Crisis Text Line\n🌐 **suicidepreventionlifeline.org/chat** - Online chat\n📞 **1-800-366-8288** - Self-Injury Outreach & Support\n\n**Poison Control:**\n📞 **1-800-222-1222** (24/7)\n🌐 **poison.org** - Online guidance\n\n**Emergency Preparation:**\n• Keep emergency contacts updated in your phone\n• Have medical history readily available\n• Know your allergies and current medications\n• Keep insurance cards accessible\n• Consider medical alert bracelet if needed\n\n**When in Doubt:**\n• **Call 911** - Emergency services\n• **Go to ER** - For serious symptoms\n• **Call your doctor** - For urgent but non-emergency issues\n• **Urgent care** - For minor injuries/illnesses\n\n⚠️ **When in doubt, seek immediate medical attention. It's better to be safe than sorry.**"
+      "🚨 **EMERGENCY INFORMATION**\n\n**Call 911 Immediately for:**\n• Chest pain or pressure\n• Difficulty breathing\n• Severe bleeding\n• Loss of consciousness\n• Stroke symptoms (FAST: Face drooping, Arm weakness, Speech difficulty, Time to call)\n• Severe allergic reactions\n• Poisoning\n\n**Mental Health Crisis:**\n📞 **988** - National Suicide Prevention Lifeline (24/7)\n💬 **Text HOME to 741741** - Crisis Text Line\n🌐 **suicidepreventionlifeline.org/chat** - Online chat\n\n**Poison Control:**\n📞 **1-800-222-1222** (24/7)\n\n**Emergency Preparation:**\n• Keep emergency contacts updated\n• Have medical history readily available\n• Know your allergies and medications\n• Keep insurance cards accessible\n\n⚠️ **When in doubt, seek immediate medical attention. It's better to be safe.**"
     ],
     
     default: [
-      "I'm here to help with health questions and medical information! 🩺\n\n**I can assist with:**\n• **Medical symptoms and conditions**\n• **Mental health and wellness strategies**\n• **Medication information and safety**\n• **Lifestyle and nutrition advice**\n• **Understanding your medical records**\n• **App navigation and features**\n• **Emergency resources and guidance**\n\n**What specific health topic would you like to explore?** Feel free to ask me anything! 😊\n\n💡 **Tip:** I can help explain your medical records, provide health tips, or discuss any symptoms you're experiencing.",
-      "Hello! I'm Dr. AIVA, ready to help with your health questions. 👋\n\n**Popular topics I can help with:**\n🧠 **Mental health** - Stress, anxiety, depression management\n💓 **Heart health** - Blood pressure, heart rate, cardiovascular tips\n💊 **Medications** - Safety, interactions, general information\n🏃‍♂️ **Exercise & nutrition** - Fitness plans, healthy eating\n😴 **Sleep improvement** - Better rest and sleep hygiene\n📱 **App features** - Using Patient Vault effectively\n\n**What would you like to know more about?**",
-      "I'm here to provide health information and support! 🌟\n\n**Ask me about:**\n• **Symptoms you're experiencing** - I can provide general guidance\n• **Mental health strategies** - Stress, anxiety, mood management\n• **Understanding test results** - Help interpret your medical data\n• **Healthy lifestyle tips** - Diet, exercise, sleep, wellness\n• **Managing chronic conditions** - General care strategies\n• **Preventive care** - Screening recommendations\n• **Emergency situations** - When to seek immediate help\n\n**What health topic is on your mind today?** 🤔\n\n⚠️ **Remember:** I provide general health information, not personalized medical advice. Always consult your healthcare provider for specific medical concerns."
+      "I'm here to help with health questions and medical information! 🩺\n\n**I can assist with:**\n• Medical symptoms and conditions\n• Mental health and wellness\n• Medication information\n• Lifestyle and nutrition advice\n• Understanding your medical records\n• App navigation and features\n\nWhat specific health topic would you like to explore? Feel free to ask me anything! 😊\n\n⚠️ **Note:** I'm an AI assistant powered by advanced medical knowledge, but I cannot replace professional medical care. For emergencies or serious health concerns, please consult a real doctor immediately.",
+      "Hello! I'm Dr. AIVA, ready to help with your health questions. 👋\n\n**Popular topics I can help with:**\n🧠 Mental health and stress management\n💓 Heart health and blood pressure\n💊 Medication information\n🏃‍♂️ Exercise and nutrition\n😴 Sleep improvement\n📱 Using the Patient Vault app\n\nWhat would you like to know more about?\n\n⚠️ **Important:** I'm an AI assistant and cannot provide medical diagnoses or replace professional healthcare. Always consult with qualified medical professionals for personalized medical advice.",
+      "I'm here to provide health information and support! 🌟\n\n**Ask me about:**\n• Symptoms you're experiencing\n• Mental health and wellness strategies\n• Understanding medical test results\n• Healthy lifestyle tips\n• Managing chronic conditions\n• Preventive care recommendations\n\nWhat health topic is on your mind today? 🤔\n\n⚠️ **Disclaimer:** I'm an AI medical assistant designed to provide general health information and support. I cannot diagnose conditions, prescribe medications, or replace professional medical care. For urgent health concerns, please contact your healthcare provider or emergency services."
     ]
   };
 
@@ -541,46 +419,42 @@ const generateEnhancedFallbackResponse = (userInput: string, userContext: string
 };
 
 // Medical document analysis with enhanced insights
-export const analyzeMedicalDocument = (record: any): string => {
+export const analyzeMedicalDocument = (record: MedicalRecord): string => {
   const analysis = [];
   
   analysis.push(`📋 **Medical Document Analysis: ${record.title}**\n`);
-  analysis.push(`**Healthcare Provider:** ${record.doctorName || record.doctor_name || 'Unknown'}`);
-  analysis.push(`**Date of Service:** ${record.visitDate || record.visit_date || 'Unknown'}`);
-  analysis.push(`**Document Category:** ${(record.category || 'other').charAt(0).toUpperCase() + (record.category || 'other').slice(1).replace('-', ' ')}\n`);
+  analysis.push(`**Healthcare Provider:** ${record.doctorName}`);
+  analysis.push(`**Date of Service:** ${record.visitDate}`);
+  analysis.push(`**Document Category:** ${record.category.charAt(0).toUpperCase() + record.category.slice(1).replace('-', ' ')}\n`);
   
   // Enhanced category-specific analysis
   switch (record.category) {
     case 'prescription':
       analysis.push("💊 **Prescription Document Analysis:**");
       analysis.push("This document contains medication information. Key points to remember:");
-      analysis.push("• Always take medications as prescribed by your healthcare provider");
-      analysis.push("• Note any side effects and report them to your doctor promptly");
-      analysis.push("• Don't stop medications without consulting your physician first");
-      analysis.push("• Keep an updated list of all medications and dosages");
-      analysis.push("• Check for drug interactions with new medications or supplements");
+      analysis.push("• Always take medications as prescribed");
+      analysis.push("• Note any side effects and report to your doctor");
+      analysis.push("• Don't stop medications without consulting your physician");
+      analysis.push("• Keep an updated list of all medications");
       
-      const title = (record.title || '').toLowerCase();
+      const title = record.title.toLowerCase();
       if (title.includes('metformin')) {
         analysis.push("\n**Metformin Information:**");
         analysis.push("• Used for type 2 diabetes management");
         analysis.push("• Take with meals to reduce stomach upset");
         analysis.push("• Monitor blood sugar levels regularly");
-        analysis.push("• May cause vitamin B12 deficiency with long-term use");
       }
       if (title.includes('lisinopril')) {
         analysis.push("\n**Lisinopril Information:**");
         analysis.push("• ACE inhibitor for blood pressure control");
         analysis.push("• May cause dry cough in some patients");
         analysis.push("• Monitor blood pressure regularly");
-        analysis.push("• Avoid potassium supplements unless directed");
       }
       if (title.includes('atorvastatin') || title.includes('lipitor')) {
         analysis.push("\n**Statin Information:**");
         analysis.push("• Used for cholesterol management");
         analysis.push("• Take at bedtime for best effectiveness");
         analysis.push("• Report muscle pain or weakness to doctor");
-        analysis.push("• Regular liver function tests may be needed");
       }
       break;
       
@@ -590,10 +464,9 @@ export const analyzeMedicalDocument = (record: any): string => {
       analysis.push("• **Blood glucose:** Monitors diabetes risk and management");
       analysis.push("• **Cholesterol panel:** Assesses cardiovascular health");
       analysis.push("• **Complete blood count:** Evaluates overall health status");
-      analysis.push("• **Kidney function:** Monitors organ health (creatinine, BUN)");
-      analysis.push("• **Liver function:** Assesses metabolic health (ALT, AST)");
-      analysis.push("• **Thyroid function:** Checks hormone levels (TSH, T3, T4)");
-      analysis.push("\n**Follow-up:** Discuss results with your healthcare provider for personalized interpretation and next steps.");
+      analysis.push("• **Kidney function:** Monitors organ health");
+      analysis.push("• **Liver function:** Assesses metabolic health");
+      analysis.push("\n**Follow-up:** Discuss results with your healthcare provider for personalized interpretation.");
       break;
       
     case 'imaging':
@@ -603,9 +476,7 @@ export const analyzeMedicalDocument = (record: any): string => {
       analysis.push("• **MRI:** Detailed soft tissue, brain, and joint imaging");
       analysis.push("• **CT scans:** Cross-sectional body imaging for diagnosis");
       analysis.push("• **Ultrasound:** Real-time imaging of organs and blood flow");
-      analysis.push("• **Mammography:** Breast cancer screening");
-      analysis.push("• **DEXA scan:** Bone density measurement");
-      analysis.push("\n**Important:** Only qualified radiologists should interpret imaging results. Always discuss findings with your healthcare provider.");
+      analysis.push("\n**Important:** Only qualified radiologists should interpret imaging results.");
       break;
       
     case 'checkup':
@@ -615,105 +486,86 @@ export const analyzeMedicalDocument = (record: any): string => {
       analysis.push("• **Physical examination:** Overall health assessment");
       analysis.push("• **Preventive screenings:** Early detection of health issues");
       analysis.push("• **Health counseling:** Lifestyle and wellness guidance");
-      analysis.push("• **Immunization updates:** Vaccine recommendations");
-      analysis.push("• **Risk assessment:** Family history and lifestyle factors");
-      break;
-      
-    default:
-      analysis.push("📄 **General Medical Document:**");
-      analysis.push("This document contains important health information:");
-      analysis.push("• Keep this record for your medical history");
-      analysis.push("• Share with healthcare providers as needed");
-      analysis.push("• Follow any instructions or recommendations");
-      analysis.push("• Schedule follow-up appointments if required");
       break;
   }
   
   // Enhanced vitals analysis with health insights
-  if (record.bloodPressure || record.blood_pressure || record.heartRate || record.heart_rate || 
-      record.weight || record.bloodSugar || record.blood_sugar || record.height) {
+  if (record.bloodPressure || record.heartRate || record.weight || record.bloodSugar || record.height) {
     analysis.push(`\n💓 **Vital Signs Analysis:**`);
     
-    const bp = record.bloodPressure || record.blood_pressure;
-    if (bp) {
-      analysis.push(`• **Blood Pressure:** ${bp} mmHg`);
-      const [systolic, diastolic] = bp.split('/').map((n: string) => parseInt(n));
+    if (record.bloodPressure) {
+      analysis.push(`• **Blood Pressure:** ${record.bloodPressure} mmHg`);
+      const [systolic, diastolic] = record.bloodPressure.split('/').map(n => parseInt(n));
       if (systolic >= 140 || diastolic >= 90) {
         analysis.push("  ⚠️ **High blood pressure** - Consult your doctor about management strategies");
-        analysis.push("  💡 **Tips:** Reduce sodium, exercise regularly, manage stress, maintain healthy weight");
+        analysis.push("  💡 **Tips:** Reduce sodium, exercise regularly, manage stress");
       } else if (systolic < 90 || diastolic < 60) {
-        analysis.push("  ℹ️ **Low blood pressure** - Monitor for symptoms like dizziness or fatigue");
+        analysis.push("  ℹ️ **Low blood pressure** - Monitor for symptoms like dizziness");
       } else {
         analysis.push("  ✅ **Normal blood pressure range** - Continue healthy lifestyle habits");
       }
     }
     
-    const hr = record.heartRate || record.heart_rate;
-    if (hr) {
-      analysis.push(`• **Heart Rate:** ${hr} bpm`);
-      if (hr > 100) {
-        analysis.push("  ⚠️ **Elevated heart rate** - May indicate stress, caffeine, dehydration, or medical condition");
-      } else if (hr < 60) {
-        analysis.push("  ℹ️ **Low heart rate** - Common in athletes, monitor for symptoms like dizziness");
+    if (record.heartRate) {
+      analysis.push(`• **Heart Rate:** ${record.heartRate} bpm`);
+      if (record.heartRate > 100) {
+        analysis.push("  ⚠️ **Elevated heart rate** - May indicate stress, caffeine, or medical condition");
+      } else if (record.heartRate < 60) {
+        analysis.push("  ℹ️ **Low heart rate** - Common in athletes, monitor for symptoms");
       } else {
         analysis.push("  ✅ **Normal heart rate range** - Good cardiovascular health indicator");
       }
     }
     
     if (record.weight && record.height) {
-      const weight = record.weight;
-      const height = record.height;
-      const bmi = weight / ((height / 100) ** 2);
-      analysis.push(`• **Weight:** ${weight} kg | **Height:** ${height} cm`);
+      const bmi = record.weight / ((record.height / 100) ** 2);
+      analysis.push(`• **Weight:** ${record.weight} kg | **Height:** ${record.height} cm`);
       analysis.push(`• **BMI:** ${bmi.toFixed(1)} kg/m²`);
       
       if (bmi < 18.5) {
-        analysis.push("  ℹ️ **Underweight** - Consider nutritional counseling and strength training");
+        analysis.push("  ℹ️ **Underweight** - Consider nutritional counseling");
       } else if (bmi < 25) {
         analysis.push("  ✅ **Normal weight range** - Maintain current healthy habits");
       } else if (bmi < 30) {
-        analysis.push("  ⚠️ **Overweight** - Consider lifestyle modifications: diet and exercise");
+        analysis.push("  ⚠️ **Overweight** - Consider lifestyle modifications");
       } else {
-        analysis.push("  ⚠️ **Obese** - Consult healthcare provider for comprehensive weight management plan");
+        analysis.push("  ⚠️ **Obese** - Consult healthcare provider for weight management plan");
       }
     } else if (record.weight) {
       analysis.push(`• **Weight:** ${record.weight} kg`);
     }
     
-    const bs = record.bloodSugar || record.blood_sugar;
-    if (bs) {
-      analysis.push(`• **Blood Sugar:** ${bs} mg/dL`);
-      if (bs > 126) {
-        analysis.push("  ⚠️ **Elevated blood sugar** - May indicate diabetes risk, discuss with doctor");
-        analysis.push("  💡 **Tips:** Monitor carbohydrate intake, increase physical activity, regular monitoring");
-      } else if (bs < 70) {
-        analysis.push("  ⚠️ **Low blood sugar** - Monitor for hypoglycemia symptoms, discuss with doctor");
+    if (record.bloodSugar) {
+      analysis.push(`• **Blood Sugar:** ${record.bloodSugar} mg/dL`);
+      if (record.bloodSugar > 126) {
+        analysis.push("  ⚠️ **Elevated blood sugar** - May indicate diabetes risk");
+        analysis.push("  💡 **Tips:** Monitor carbohydrate intake, increase physical activity");
+      } else if (record.bloodSugar < 70) {
+        analysis.push("  ⚠️ **Low blood sugar** - Monitor for hypoglycemia symptoms");
       } else {
-        analysis.push("  ✅ **Normal blood sugar range** - Good metabolic health indicator");
+        analysis.push("  ✅ **Normal blood sugar range** - Good metabolic health");
       }
     }
   }
   
   analysis.push("\n💡 **Health Recommendations:**");
   analysis.push("• **Keep records organized** for easy access during medical visits");
-  analysis.push("• **Share with healthcare providers** for comprehensive care coordination");
+  analysis.push("• **Share with healthcare providers** for comprehensive care");
   analysis.push("• **Track trends** in your vital signs over time");
   analysis.push("• **Follow up** on any abnormal findings with your doctor");
   analysis.push("• **Maintain healthy lifestyle** habits for optimal health");
-  analysis.push("• **Ask questions** if you don't understand any part of your results");
   
   analysis.push("\n🔒 **Privacy & Security:**");
-  analysis.push("• Your medical data is encrypted and secure in Patient Vault");
+  analysis.push("• Your medical data is encrypted and secure");
   analysis.push("• Only you control access to your health information");
   analysis.push("• Share responsibly with trusted healthcare providers");
-  analysis.push("• Use secure sharing features for temporary access");
   
-  analysis.push("\n⚠️ **Important Disclaimer:** This analysis is for informational purposes only and does not replace professional medical interpretation. Always consult your healthcare provider for personalized medical advice, treatment decisions, and any concerns about your health.");
+  analysis.push("\n⚠️ **Important Disclaimer:** This analysis is for informational purposes only and does not replace professional medical interpretation. Always consult your healthcare provider for personalized medical advice and treatment decisions.");
   
   return analysis.join('\n');
 };
 
-// Main chat response generator with OpenRouter as primary, OpenAI as fallback
+// Main chat response generator with OpenRouter as primary service
 export const generateChatResponse = async (
   userInput: string,
   user: User | null,
@@ -761,42 +613,33 @@ CURRENT CONTEXT:
     content: userInput
   });
 
-  // Try OpenRouter first (primary), then OpenAI (fallback), then Gemini, then enhanced fallback
-  const openRouterKey = import.meta.env.VITE_OPENROUTER_API_KEY;
-  const openAIKey = import.meta.env.VITE_OPENAI_API_KEY;
-  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
-
-  // Primary: OpenRouter
-  if (openRouterKey) {
-    try {
-      console.log('🤖 Using OpenRouter API (Primary)');
-      return await callOpenRouter(apiMessages, userContext);
-    } catch (error) {
-      console.warn('OpenRouter failed, trying OpenAI fallback...', error);
-    }
+  // Try services in order: OpenRouter (primary) → OpenAI (fallback) → Gemini (fallback) → Enhanced local responses
+  
+  // 1. Try OpenRouter first (Primary AI Service)
+  try {
+    console.log('🚀 Attempting OpenRouter API...');
+    return await callOpenRouter(apiMessages, userContext);
+  } catch (error: any) {
+    console.warn('OpenRouter failed, trying OpenAI fallback...', error.message);
   }
 
-  // Fallback 1: OpenAI
-  if (openAIKey) {
-    try {
-      console.log('🤖 Using OpenAI API (Fallback)');
-      return await callOpenAI(apiMessages, userContext);
-    } catch (error) {
-      console.warn('OpenAI failed, trying Gemini...', error);
-    }
+  // 2. Try OpenAI as fallback
+  try {
+    console.log('🔄 Attempting OpenAI API fallback...');
+    return await callOpenAI(apiMessages, userContext);
+  } catch (error: any) {
+    console.warn('OpenAI failed, trying Gemini fallback...', error.message);
   }
 
-  // Fallback 2: Gemini
-  if (geminiKey) {
-    try {
-      console.log('🤖 Using Gemini API (Fallback)');
-      return await callGemini(apiMessages, userContext);
-    } catch (error) {
-      console.warn('Gemini failed, using enhanced fallback...', error);
-    }
+  // 3. Try Gemini as secondary fallback
+  try {
+    console.log('🔄 Attempting Gemini API fallback...');
+    return await callGemini(apiMessages, userContext);
+  } catch (error: any) {
+    console.warn('Gemini failed, using enhanced local responses...', error.message);
   }
 
-  // Final fallback: Enhanced local responses
-  console.log('🤖 Using Enhanced Fallback System');
+  // 4. Use enhanced fallback system (always available)
+  console.log('📚 Using enhanced local medical knowledge base...');
   return generateEnhancedFallbackResponse(userInput, userContext);
 };
