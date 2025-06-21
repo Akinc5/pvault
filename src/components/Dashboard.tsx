@@ -18,8 +18,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useMedicalData } from '../hooks/useMedicalData';
-import { GlassmorphicCard } from './GlassmorphicCard';
-import { MedicalTimeline } from './MedicalTimeline';
+import GlassmorphicCard from './GlassmorphicCard';
+import MedicalTimeline from './MedicalTimeline';
 import { PrescriptionUpload } from './PrescriptionUpload/PrescriptionUpload';
 import { ShareAccess } from './ShareAccess';
 import { EmergencyMode } from './EmergencyMode';
@@ -66,7 +66,7 @@ const Card3D: React.FC<Card3DProps> = ({ children, className = '', mousePosition
   );
 };
 
-export const Dashboard: React.FC = () => {
+const Dashboard: React.FC = () => {
   const { user, signOut } = useAuth();
   const { profile, checkups, medications, medicalRecords, loading } = useMedicalData();
   const [activeTab, setActiveTab] = useState('overview');
@@ -524,3 +524,5 @@ export const Dashboard: React.FC = () => {
     </div>
   );
 };
+
+export default Dashboard;
