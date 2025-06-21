@@ -26,7 +26,7 @@ import EmergencyMode from './EmergencyMode';
 import ChatBot from './ChatBot/ChatBot';
 import { HealthTrendChart } from './HealthTrendChart';
 import { XRayViewer } from './XRayViewer';
-import { Scene3D } from './3D/Scene3D';
+import Scene3D from './3D/Scene3D';
 
 interface MousePosition {
   x: number;
