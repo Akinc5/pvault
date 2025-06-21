@@ -242,6 +242,12 @@ const callGemini = async (messages: any[], userContext: string, retryCount = 0):
     throw new Error('Gemini API key not configured');
   }
 
+  // Validate API key format
+  if (!apiKey.startsWith('AIza')) {
+    console.error('Invalid Gemini API key format. Key should start with "AIza"');
+    throw new Error('Invalid Gemini API key format. Please check your configuration.');
+  }
+
   try {
     console.log(`🔄 Calling Gemini API (attempt ${retryCount + 1}/${maxRetries})...`);
     
@@ -268,7 +274,7 @@ Provide a helpful, medically-informed response that:
 
 Remember: You cannot diagnose, prescribe medications, or replace professional medical care.`;
 
-    // Use the correct Gemini API endpoint and format
+    // FIXED: Use the correct Gemini API endpoint with API key as query parameter
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
     
     const requestBody = {
@@ -310,11 +316,12 @@ Remember: You cannot diagnose, prescribe medications, or replace professional me
     // Log request details in development
     if (import.meta.env.DEV) {
       console.log('🔍 Gemini API Request:', {
-        url,
+        url: url.replace(apiKey, 'API_KEY_HIDDEN'),
         body: JSON.stringify(requestBody, null, 2)
       });
     }
 
+    // FIXED: Remove Authorization header since API key is in URL
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -352,10 +359,8 @@ Remember: You cannot diagnose, prescribe medications, or replace professional me
         console.log(`⏳ Gemini rate limited, retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         return callGemini(messages, userContext, retryCount + 1);
-      } else if (response.status === 401) {
+      } else if (response.status === 401 || response.status === 403) {
         throw new Error('Gemini API authentication failed. Please check your API key.');
-      } else if (response.status === 403) {
-        throw new Error('Gemini API access forbidden. Please check your API key permissions.');
       } else {
         throw new Error(`Gemini API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
       }
