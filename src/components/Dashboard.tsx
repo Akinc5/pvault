@@ -38,7 +38,8 @@ import {
   Sparkles,
   Phone,
   Mail,
-  MapPin
+  MapPin,
+  ExternalLink
 } from 'lucide-react';
 import { User as UserType, MedicalRecord, TimelineEvent } from '../types';
 import MedicalTimeline from './MedicalTimeline';
@@ -75,6 +76,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [activeTab, setActiveTab] = useState<'overview' | 'records' | 'timeline' | 'prescriptions'>('overview');
   const [showAddRecord, setShowAddRecord] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [viewingRecord, setViewingRecord] = useState<MedicalRecord | null>(null);
   const [newRecord, setNewRecord] = useState({
     title: '',
     doctorName: '',
@@ -153,6 +155,41 @@ const Dashboard: React.FC<DashboardProps> = ({
         fileType: file.type.includes('pdf') ? 'PDF' : file.type.includes('image') ? 'Image' : 'Document',
         fileSize: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
       }));
+    }
+  };
+
+  // Handle viewing a record
+  const handleViewRecord = (record: MedicalRecord) => {
+    if (record.fileUrl) {
+      // If there's a file URL, open it in a new tab
+      window.open(record.fileUrl, '_blank');
+    } else {
+      // If no file URL, show record details in modal
+      setViewingRecord(record);
+    }
+  };
+
+  // Handle downloading a record
+  const handleDownloadRecord = async (record: MedicalRecord) => {
+    if (!record.fileUrl) {
+      alert('No file available for download');
+      return;
+    }
+
+    try {
+      // Create a temporary link to download the file
+      const link = document.createElement('a');
+      link.href = record.fileUrl;
+      link.download = `${record.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.${record.fileType.toLowerCase()}`;
+      link.target = '_blank';
+      
+      // Append to body, click, and remove
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Download error:', error);
+      alert('Failed to download file. Please try again.');
     }
   };
 
@@ -563,12 +600,25 @@ const Dashboard: React.FC<DashboardProps> = ({
                               {getCategoryIcon(record.category)}
                             </div>
                             <div className="flex items-center space-x-2">
-                              <button className="p-1 text-gray-400 hover:text-blue-600 transition-colors">
+                              <motion.button
+                                onClick={() => handleViewRecord(record)}
+                                className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                title="View record"
+                              >
                                 <Eye className="w-4 h-4" />
-                              </button>
-                              <button className="p-1 text-gray-400 hover:text-green-600 transition-colors">
-                                <Download className="w-4 h-4" />
-                              </button>
+                              </motion.button>
+                              <motion.button
+                                onClick={() => handleDownloadRecord(record)}
+                                className="p-1 text-gray-400 hover:text-green-600 transition-colors"
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                title="Download record"
+                                disabled={!record.fileUrl}
+                              >
+                                <Download className={`w-4 h-4 ${!record.fileUrl ? 'opacity-50 cursor-not-allowed' : ''}`} />
+                              </motion.button>
                             </div>
                           </div>
                           
@@ -579,6 +629,39 @@ const Dashboard: React.FC<DashboardProps> = ({
                             <span>{record.visitDate}</span>
                             <span>{record.fileSize}</span>
                           </div>
+
+                          {/* Show vitals if available */}
+                          {(record.weight || record.height || record.bloodPressure || record.heartRate) && (
+                            <div className="mt-3 pt-3 border-t border-gray-200/50">
+                              <p className="text-xs text-gray-500 mb-2">Vitals:</p>
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                {record.weight && (
+                                  <div>
+                                    <span className="text-gray-500">Weight:</span>
+                                    <span className="ml-1 font-medium">{record.weight}kg</span>
+                                  </div>
+                                )}
+                                {record.height && (
+                                  <div>
+                                    <span className="text-gray-500">Height:</span>
+                                    <span className="ml-1 font-medium">{record.height}cm</span>
+                                  </div>
+                                )}
+                                {record.bloodPressure && (
+                                  <div>
+                                    <span className="text-gray-500">BP:</span>
+                                    <span className="ml-1 font-medium">{record.bloodPressure}</span>
+                                  </div>
+                                )}
+                                {record.heartRate && (
+                                  <div>
+                                    <span className="text-gray-500">HR:</span>
+                                    <span className="ml-1 font-medium">{record.heartRate}bpm</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </motion.div>
                       ))}
                     </div>
@@ -614,6 +697,144 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Record Details Modal */}
+      <AnimatePresence>
+        {viewingRecord && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white/90 backdrop-blur-xl rounded-3xl p-8 w-full max-w-2xl shadow-2xl border border-white/20 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-gray-900">Record Details</h3>
+                <button
+                  onClick={() => setViewingRecord(null)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-6 h-6 text-gray-500" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                    <p className="text-gray-900 font-semibold">{viewingRecord.title}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Doctor</label>
+                    <p className="text-gray-900">Dr. {viewingRecord.doctorName}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Visit Date</label>
+                    <p className="text-gray-900">{viewingRecord.visitDate}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-sm ${getCategoryColor(viewingRecord.category)}`}>
+                      {getCategoryIcon(viewingRecord.category)}
+                      <span className="capitalize">{viewingRecord.category.replace('-', ' ')}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Vitals Section */}
+                {(viewingRecord.weight || viewingRecord.height || viewingRecord.bloodPressure || viewingRecord.heartRate || viewingRecord.bloodSugar) && (
+                  <div className="border-t border-gray-200 pt-6">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4">Vitals</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {viewingRecord.weight && (
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                          <label className="block text-sm font-medium text-blue-700 mb-1">Weight</label>
+                          <p className="text-xl font-bold text-blue-900">{viewingRecord.weight} kg</p>
+                        </div>
+                      )}
+                      {viewingRecord.height && (
+                        <div className="bg-green-50 p-4 rounded-lg">
+                          <label className="block text-sm font-medium text-green-700 mb-1">Height</label>
+                          <p className="text-xl font-bold text-green-900">{viewingRecord.height} cm</p>
+                        </div>
+                      )}
+                      {viewingRecord.bloodPressure && (
+                        <div className="bg-red-50 p-4 rounded-lg">
+                          <label className="block text-sm font-medium text-red-700 mb-1">Blood Pressure</label>
+                          <p className="text-xl font-bold text-red-900">{viewingRecord.bloodPressure}</p>
+                        </div>
+                      )}
+                      {viewingRecord.heartRate && (
+                        <div className="bg-purple-50 p-4 rounded-lg">
+                          <label className="block text-sm font-medium text-purple-700 mb-1">Heart Rate</label>
+                          <p className="text-xl font-bold text-purple-900">{viewingRecord.heartRate} bpm</p>
+                        </div>
+                      )}
+                      {viewingRecord.bloodSugar && (
+                        <div className="bg-yellow-50 p-4 rounded-lg">
+                          <label className="block text-sm font-medium text-yellow-700 mb-1">Blood Sugar</label>
+                          <p className="text-xl font-bold text-yellow-900">{viewingRecord.bloodSugar} mg/dL</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* File Info */}
+                <div className="border-t border-gray-200 pt-6">
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4">File Information</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">File Type</label>
+                      <p className="text-gray-900">{viewingRecord.fileType}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">File Size</label>
+                      <p className="text-gray-900">{viewingRecord.fileSize}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Upload Date</label>
+                      <p className="text-gray-900">{viewingRecord.uploadDate}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex space-x-4 pt-6">
+                  <button
+                    onClick={() => setViewingRecord(null)}
+                    className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-colors"
+                  >
+                    Close
+                  </button>
+                  {viewingRecord.fileUrl && (
+                    <>
+                      <motion.button
+                        onClick={() => handleDownloadRecord(viewingRecord)}
+                        className="flex items-center justify-center space-x-2 px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>Download</span>
+                      </motion.button>
+                      <motion.button
+                        onClick={() => window.open(viewingRecord.fileUrl, '_blank')}
+                        className="flex items-center justify-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        <span>Open File</span>
+                      </motion.button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Add Record Modal */}
       <AnimatePresence>
