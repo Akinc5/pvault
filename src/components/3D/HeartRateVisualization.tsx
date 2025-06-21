@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Environment, Float } from '@react-three/drei';
 import { Heart, Activity, Clock, TrendingUp, Zap, Scale, User } from 'lucide-react';
-import Heart3D from './Heart3D';
 import { supabase } from '../../lib/supabase';
 import { User as UserType } from '../../types';
 
@@ -313,34 +310,42 @@ const HeartRateVisualization: React.FC<HeartRateVisualizationProps> = ({
   return (
     <div className={`bg-white/20 backdrop-blur-xl rounded-3xl border border-white/30 shadow-2xl p-8 ${className}`}>
       <div className="space-y-6 h-full">
-        {/* Header with BPM and Status */}
+        {/* Header with BPM and Status - Simplified without 3D heart */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-6">
             {heartRateData ? (
               <>
-                <motion.div
-                  animate={{
-                    scale: isBeating ? 1.05 : 1,
-                    textShadow: isBeating ? "0 0 20px rgba(239, 68, 68, 0.8)" : "0 0 10px rgba(239, 68, 68, 0.4)"
-                  }}
-                  transition={{ duration: 0.2 }}
-                  className="text-5xl font-bold text-red-500"
-                >
-                  {heartRateData.heart_rate}
-                </motion.div>
-                <div>
+                <div className="text-center">
+                  <motion.div
+                    animate={{
+                      scale: isBeating ? 1.05 : 1,
+                      textShadow: isBeating ? "0 0 20px rgba(239, 68, 68, 0.8)" : "0 0 10px rgba(239, 68, 68, 0.4)"
+                    }}
+                    transition={{ duration: 0.2 }}
+                    className="text-5xl font-bold text-red-500 mb-2"
+                  >
+                    {heartRateData.heart_rate}
+                  </motion.div>
                   <div className="text-lg text-gray-700 font-medium">BPM</div>
-                  <div className={`px-3 py-1 rounded-full ${heartRateStatus?.bgColor} border border-gray-300/50`}>
-                    <div className="flex items-center space-x-2">
-                      <motion.div
-                        animate={{
-                          scale: isBeating ? 1.2 : 1,
-                        }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        <Heart className={`w-4 h-4 ${heartRateStatus?.color}`} />
-                      </motion.div>
-                      <span className={`text-sm font-medium ${heartRateStatus?.color}`}>{heartRateStatus?.status}</span>
+                </div>
+                
+                <div className={`px-4 py-3 rounded-xl ${heartRateStatus?.bgColor} border border-gray-300/50`}>
+                  <div className="flex items-center space-x-3">
+                    <motion.div
+                      animate={{
+                        scale: isBeating ? 1.2 : 1,
+                      }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Heart className={`w-6 h-6 ${heartRateStatus?.color}`} />
+                    </motion.div>
+                    <div>
+                      <div className={`text-lg font-semibold ${heartRateStatus?.color}`}>
+                        {heartRateStatus?.status}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Heart Rate Status
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -353,56 +358,22 @@ const HeartRateVisualization: React.FC<HeartRateVisualizationProps> = ({
             )}
           </div>
 
-          {/* Small 3D Heart - Rotated 180 degrees */}
-          <div className="w-32 h-32 relative">
-            <div className="w-full h-full bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl border border-gray-700/50">
-              <Canvas
-                camera={{ position: [0, 0, 5], fov: 50 }}
-                style={{ background: 'transparent' }}
-                gl={{ antialias: true, alpha: true }}
-              >
-                <ambientLight intensity={0.4} />
-                <directionalLight position={[10, 10, 5]} intensity={0.8} />
-                <pointLight position={[-10, -10, -5]} intensity={0.3} color="#ff6b6b" />
-                
-                <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.3}>
-                  <motion.group
-                    animate={{
-                      scale: isBeating ? 1.2 : 1,
-                    }}
-                    transition={{
-                      duration: 0.2,
-                      ease: "easeOut"
-                    }}
-                    rotation={[Math.PI, 0, 0]} // 180-degree rotation around X-axis
-                  >
-                    <Heart3D scale={1.5} color="#ff6b6b" />
-                  </motion.group>
-                </Float>
-                
-                <Environment preset="studio" />
-                <OrbitControls
-                  enableZoom={false}
-                  enablePan={false}
-                  autoRotate
-                  autoRotateSpeed={0.5}
-                />
-              </Canvas>
-            </div>
-            
-            {/* Pulse Ring Effect */}
-            <AnimatePresence>
-              {isBeating && (
+          {/* Pulse indicator */}
+          {heartRateData && (
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
                 <motion.div
-                  initial={{ scale: 0.8, opacity: 0.8 }}
-                  animate={{ scale: 2, opacity: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.6, ease: "easeOut" }}
-                  className="absolute inset-0 rounded-2xl border-4 border-red-400/50 pointer-events-none"
+                  animate={{
+                    scale: isBeating ? 1.3 : 1,
+                    opacity: isBeating ? 1 : 0.6,
+                  }}
+                  transition={{ duration: 0.2 }}
+                  className="w-4 h-4 bg-red-400 rounded-full"
                 />
-              )}
-            </AnimatePresence>
-          </div>
+                <span className="text-sm text-gray-600 font-medium">Live Monitor</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Large ECG Waveform Monitor */}
