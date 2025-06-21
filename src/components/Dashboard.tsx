@@ -23,7 +23,7 @@ import { MedicalTimeline } from './MedicalTimeline';
 import { PrescriptionUpload } from './PrescriptionUpload/PrescriptionUpload';
 import { ShareAccess } from './ShareAccess';
 import { EmergencyMode } from './EmergencyMode';
-import { ChatBot } from './ChatBot/ChatBot';
+import ChatBot from './ChatBot/ChatBot';
 import { HealthTrendChart } from './HealthTrendChart';
 import { XRayViewer } from './XRayViewer';
 import { Scene3D } from './3D/Scene3D';
