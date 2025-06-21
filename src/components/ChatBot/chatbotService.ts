@@ -239,14 +239,32 @@ Remember: You are a supportive medical AI assistant, not a replacement for profe
         const errorData = await response.json().catch(() => ({}));
         console.error(`OpenAI API Error (attempt ${attempt + 1}/${maxRetries + 1}):`, response.status, errorData);
         
-        if (response.status === 429 && attempt < maxRetries) {
-          const delay = baseDelay * Math.pow(2, attempt);
-          console.log(`OpenAI rate limit, retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          continue;
+        // Handle specific OpenAI errors
+        if (response.status === 401) {
+          throw new Error('OPENAI_INVALID_KEY');
+        } else if (response.status === 402 || (errorData.error && errorData.error.code === 'insufficient_quota')) {
+          throw new Error('OPENAI_QUOTA_EXCEEDED');
+        } else if (response.status === 429) {
+          if (attempt < maxRetries) {
+            const delay = baseDelay * Math.pow(2, attempt);
+            console.log(`OpenAI rate limit, retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          } else {
+            throw new Error('OPENAI_RATE_LIMIT');
+          }
+        } else if (response.status >= 500) {
+          if (attempt < maxRetries) {
+            const delay = baseDelay * (attempt + 1);
+            console.log(`OpenAI server error, retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          } else {
+            throw new Error('OPENAI_SERVER_ERROR');
+          }
+        } else {
+          throw new Error(`OPENAI_API_ERROR_${response.status}`);
         }
-        
-        throw new Error(`OpenAI API error: ${response.status}`);
       }
 
       const data = await response.json();
@@ -255,6 +273,14 @@ Remember: You are a supportive medical AI assistant, not a replacement for profe
     } catch (error: any) {
       console.error(`OpenAI API error on attempt ${attempt + 1}:`, error);
       if (attempt === maxRetries) {
+        // Handle specific OpenAI error types
+        if (error.message === 'OPENAI_QUOTA_EXCEEDED') {
+          return "💳 **OpenAI Service Quota Exceeded**\n\nThe OpenAI service has reached its usage limit. This is a temporary issue that will be resolved soon.\n\nIn the meantime, I can still help with health questions using my comprehensive built-in medical knowledge! What would you like to know about?";
+        } else if (error.message === 'OPENAI_INVALID_KEY') {
+          return "🔑 **OpenAI Configuration Issue**\n\nThere's a configuration issue with the OpenAI service. This will be resolved soon.\n\nI can still provide helpful health information using my built-in medical knowledge base! How can I help you today?";
+        } else if (error.message === 'OPENAI_RATE_LIMIT') {
+          return "⏰ **OpenAI Service Busy**\n\nThe OpenAI service is experiencing high demand. Please try again in a few moments.\n\nI can still help with health questions using my extensive medical knowledge! What's on your mind?";
+        }
         throw error;
       }
     }
@@ -287,7 +313,7 @@ const shouldRetryError = (error: any): boolean => {
   return false;
 };
 
-// Enhanced Google Gemini API integration with retry logic
+// Enhanced Google Gemini API integration with fixed safety settings
 const callGemini = async (messages: any[], userContext: string): Promise<string> => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   
@@ -332,31 +358,65 @@ Remember: You cannot diagnose, prescribe medications, or replace professional me
             maxOutputTokens: 800,
             temperature: 0.7,
           },
-          safetySettings: [
-            {
-              category: "HARM_CATEGORY_MEDICAL",
-              threshold: "BLOCK_NONE"
-            }
-          ]
+          // Removed problematic safetySettings that were causing 400 errors
+          // Let Gemini use its default safety filters instead
         }),
       });
 
       if (!response.ok) {
-        if (response.status === 429 && attempt < maxRetries) {
-          const delay = baseDelay * (attempt + 1);
-          console.log(`Gemini rate limit, retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          continue;
+        const errorData = await response.json().catch(() => ({}));
+        console.error(`Gemini API Error (attempt ${attempt + 1}/${maxRetries + 1}):`, response.status, errorData);
+        
+        if (response.status === 400) {
+          // Handle bad request errors
+          if (attempt < maxRetries) {
+            const delay = baseDelay * (attempt + 1);
+            console.log(`Gemini bad request, retrying with simplified prompt in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          } else {
+            throw new Error('GEMINI_BAD_REQUEST');
+          }
+        } else if (response.status === 429) {
+          if (attempt < maxRetries) {
+            const delay = baseDelay * (attempt + 1);
+            console.log(`Gemini rate limit, retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          } else {
+            throw new Error('GEMINI_RATE_LIMIT');
+          }
+        } else if (response.status >= 500) {
+          if (attempt < maxRetries) {
+            const delay = baseDelay * (attempt + 1);
+            console.log(`Gemini server error, retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          } else {
+            throw new Error('GEMINI_SERVER_ERROR');
+          }
+        } else {
+          throw new Error(`GEMINI_API_ERROR_${response.status}`);
         }
-        throw new Error(`Gemini API error: ${response.status}`);
       }
 
       const data = await response.json();
-      return data.candidates[0]?.content?.parts[0]?.text || 'I apologize, but I couldn\'t generate a response. Please try again.';
+      
+      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts) {
+        throw new Error('Invalid Gemini response format');
+      }
+      
+      return data.candidates[0].content.parts[0]?.text || 'I apologize, but I couldn\'t generate a response. Please try again.';
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Gemini API error on attempt ${attempt + 1}:`, error);
       if (attempt === maxRetries) {
+        // Handle specific Gemini error types
+        if (error.message === 'GEMINI_BAD_REQUEST') {
+          return "🔧 **Gemini Service Configuration Issue**\n\nThe Gemini AI service is experiencing a configuration issue. This will be resolved soon.\n\nI can still provide excellent health guidance using my comprehensive medical knowledge base! What health topic would you like to explore?";
+        } else if (error.message === 'GEMINI_RATE_LIMIT') {
+          return "⏰ **Gemini Service Busy**\n\nThe Gemini AI service is experiencing high demand. Please try again in a few moments.\n\nI can still help with health questions using my extensive built-in medical knowledge! How can I assist you?";
+        }
         return generateEnhancedFallbackResponse(messages[messages.length - 1].content, userContext);
       }
     }
