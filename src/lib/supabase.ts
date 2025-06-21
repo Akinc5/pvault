@@ -4,9 +4,9 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://pcztwzlwceukhitdujry.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-console.log('Supabase Configuration Check:');
+console.log('🔍 Supabase Configuration Check:');
 console.log('URL:', supabaseUrl);
-console.log('Anon Key:', supabaseAnonKey ? 'Set' : 'MISSING');
+console.log('Anon Key:', supabaseAnonKey ? '✅ Configured' : '❌ MISSING');
 
 let supabase;
 
@@ -169,6 +169,7 @@ export interface Database {
           file_size: string;
           uploaded_at: string;
           weight: number | null;
+          height: number | null;
           blood_pressure: string | null;
           heart_rate: number | null;
           blood_sugar: number | null;
@@ -183,6 +184,7 @@ export interface Database {
           file_type?: string;
           file_size?: string;
           weight?: number | null;
+          height?: number | null;
           blood_pressure?: string | null;
           heart_rate?: number | null;
           blood_sugar?: number | null;
@@ -196,6 +198,7 @@ export interface Database {
           file_type?: string;
           file_size?: string;
           weight?: number | null;
+          height?: number | null;
           blood_pressure?: string | null;
           heart_rate?: number | null;
           blood_sugar?: number | null;
