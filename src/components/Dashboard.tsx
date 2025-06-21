@@ -23,7 +23,10 @@ import {
   Eye,
   Download,
   Filter,
-  Search
+  Search,
+  ArrowLeft,
+  Droplets,
+  Gauge
 } from 'lucide-react';
 import { User, MedicalRecord, TimelineEvent } from '../types';
 import ChatBot from './ChatBot/ChatBot';
@@ -158,7 +161,27 @@ const Dashboard: React.FC<DashboardProps> = ({
     };
   };
 
+  // Get latest vitals from medical records
+  const getLatestVitals = () => {
+    const recordsWithVitals = records.filter(r => 
+      r.bloodPressure || r.bloodSugar || r.heartRate || r.weight
+    ).sort((a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime());
+
+    const latestBP = recordsWithVitals.find(r => r.bloodPressure)?.bloodPressure;
+    const latestSugar = recordsWithVitals.find(r => r.bloodSugar)?.bloodSugar;
+    const latestHR = recordsWithVitals.find(r => r.heartRate)?.heartRate;
+    const latestWeight = recordsWithVitals.find(r => r.weight)?.weight;
+
+    return {
+      bloodPressure: latestBP,
+      bloodSugar: latestSugar,
+      heartRate: latestHR,
+      weight: latestWeight
+    };
+  };
+
   const healthSummary = getHealthSummary();
+  const latestVitals = getLatestVitals();
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
@@ -186,6 +209,51 @@ const Dashboard: React.FC<DashboardProps> = ({
     { id: 'timeline', label: 'Timeline', icon: Clock },
     { id: 'prescriptions', label: 'Prescriptions', icon: Pill },
   ];
+
+  // Navigation component for non-overview pages
+  const NavigationHeader = () => (
+    <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center space-x-4">
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setActiveTab('overview')}
+          className="flex items-center space-x-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Overview</span>
+        </motion.button>
+        
+        <h2 className="text-3xl font-bold text-gray-900">
+          {activeTab === 'records' && 'Medical Records'}
+          {activeTab === 'timeline' && 'Medical Timeline'}
+          {activeTab === 'prescriptions' && 'Prescription Management'}
+        </h2>
+      </div>
+      
+      <div className="flex items-center space-x-2">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <motion.button
+              key={tab.id}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 ${
+                activeTab === tab.id
+                  ? 'bg-gradient-to-r from-blue-500 to-teal-500 text-white shadow-md'
+                  : 'bg-white/50 text-gray-700 hover:bg-white/70'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span className="font-medium text-sm">{tab.label}</span>
+            </motion.button>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-teal-50">
@@ -234,9 +302,9 @@ const Dashboard: React.FC<DashboardProps> = ({
               </div>
             </div>
             
-            {/* Patient Card with Allergies */}
-            <div className="bg-gradient-to-r from-blue-50 to-teal-50 rounded-xl p-4">
-              <div className="flex items-start space-x-3 mb-4">
+            {/* Patient Card with Allergies and Latest Vitals */}
+            <div className="bg-gradient-to-r from-blue-50 to-teal-50 rounded-xl p-4 space-y-4">
+              <div className="flex items-start space-x-3">
                 <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-teal-500 rounded-full flex items-center justify-center flex-shrink-0">
                   <UserIcon className="w-6 h-6 text-white" />
                 </div>
@@ -247,9 +315,52 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
               </div>
               
+              {/* Latest Vitals */}
+              <div className="grid grid-cols-2 gap-2">
+                {latestVitals.bloodPressure && (
+                  <div className="bg-white/50 rounded-lg p-2">
+                    <div className="flex items-center space-x-1 mb-1">
+                      <Gauge className="w-3 h-3 text-red-500" />
+                      <span className="text-xs font-medium text-gray-700">Blood Pressure</span>
+                    </div>
+                    <p className="text-sm font-bold text-gray-900">{latestVitals.bloodPressure}</p>
+                  </div>
+                )}
+                
+                {latestVitals.bloodSugar && (
+                  <div className="bg-white/50 rounded-lg p-2">
+                    <div className="flex items-center space-x-1 mb-1">
+                      <Droplets className="w-3 h-3 text-blue-500" />
+                      <span className="text-xs font-medium text-gray-700">Blood Sugar</span>
+                    </div>
+                    <p className="text-sm font-bold text-gray-900">{latestVitals.bloodSugar} mg/dL</p>
+                  </div>
+                )}
+                
+                {latestVitals.heartRate && (
+                  <div className="bg-white/50 rounded-lg p-2">
+                    <div className="flex items-center space-x-1 mb-1">
+                      <Heart className="w-3 h-3 text-red-500" />
+                      <span className="text-xs font-medium text-gray-700">Heart Rate</span>
+                    </div>
+                    <p className="text-sm font-bold text-gray-900">{latestVitals.heartRate} bpm</p>
+                  </div>
+                )}
+                
+                {latestVitals.weight && (
+                  <div className="bg-white/50 rounded-lg p-2">
+                    <div className="flex items-center space-x-1 mb-1">
+                      <Activity className="w-3 h-3 text-green-500" />
+                      <span className="text-xs font-medium text-gray-700">Weight</span>
+                    </div>
+                    <p className="text-sm font-bold text-gray-900">{latestVitals.weight} kg</p>
+                  </div>
+                )}
+              </div>
+              
               {/* Allergies Section */}
               {user.allergies && user.allergies.length > 0 ? (
-                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <div className="flex items-center space-x-2 mb-2">
                     <AlertTriangle className="w-4 h-4 text-yellow-600" />
                     <span className="text-sm font-semibold text-yellow-800">Allergies</span>
@@ -266,7 +377,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </div>
                 </div>
               ) : (
-                <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                   <div className="flex items-center space-x-2">
                     <Shield className="w-4 h-4 text-green-600" />
                     <span className="text-sm font-medium text-green-800">No known allergies</span>
@@ -361,7 +472,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         transition={{ delay: 0.1 }}
                         className="text-gray-600 text-lg"
                       >
-                        Here's your health overview for today
+                        Here's your health overview
                       </motion.p>
                     </div>
 
@@ -416,7 +527,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                       </GlassmorphicCard>
                     </div>
 
-                    {/* Navigation Tabs Above ECG */}
+                    {/* Navigation Tabs */}
                     <div className="bg-white/20 backdrop-blur-xl rounded-2xl border border-white/30 shadow-lg p-6">
                       <div className="flex items-center justify-between mb-6">
                         <h3 className="text-xl font-bold text-gray-900">Health Monitoring Dashboard</h3>
@@ -505,18 +616,20 @@ const Dashboard: React.FC<DashboardProps> = ({
                     exit={{ opacity: 0, y: -20 }}
                     className="space-y-6"
                   >
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-3xl font-bold text-gray-900">Medical Records</h2>
-                      <button
-                        onClick={() => setShowAddRecord(true)}
-                        className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>Add Record</span>
-                      </button>
-                    </div>
+                    <NavigationHeader />
 
                     <GlassmorphicCard className="p-6">
+                      <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-bold text-gray-900">All Medical Records</h3>
+                        <button
+                          onClick={() => setShowAddRecord(true)}
+                          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Add Record</span>
+                        </button>
+                      </div>
+
                       {records.length === 0 ? (
                         <div className="text-center py-12">
                           <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -574,7 +687,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     exit={{ opacity: 0, y: -20 }}
                     className="space-y-6"
                   >
-                    <h2 className="text-3xl font-bold text-gray-900">Medical Timeline</h2>
+                    <NavigationHeader />
                     <MedicalTimeline events={timelineEvents} />
                   </motion.div>
                 )}
@@ -587,7 +700,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     exit={{ opacity: 0, y: -20 }}
                     className="space-y-6"
                   >
-                    <h2 className="text-3xl font-bold text-gray-900">Prescription Management</h2>
+                    <NavigationHeader />
                     <PrescriptionUpload userId={user.id} />
                   </motion.div>
                 )}
