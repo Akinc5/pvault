@@ -386,7 +386,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   {/* Heart Rate Visualization */}
                   <HeartRateVisualization user={user} className="h-96" />
 
-                  {/* Recent Records */}
+                  {/* Recent Records - MOVED TO BOTTOM */}
                   <GlassmorphicCard className="p-8">
                     <div className="flex items-center justify-between mb-6">
                       <h3 className="text-2xl font-bold text-gray-900">Recent Medical Records</h3>
