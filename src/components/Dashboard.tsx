@@ -416,18 +416,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                     {/* Heart Rate Visualization */}
                     <HeartRateVisualization user={user} className="min-h-[400px]" />
 
-                    {/* 3D Medical Visualization */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      <GlassmorphicCard className="p-6">
-                        <div className="text-center mb-4">
-                          <h3 className="text-lg font-semibold text-gray-900 mb-2">Heart Health</h3>
-                          <p className="text-gray-600 text-sm">3D Heart Model</p>
-                        </div>
-                        <div className="h-48">
-                          <Scene3D type="heart" />
-                        </div>
-                      </GlassmorphicCard>
-
+                    {/* 3D Medical Visualization - Removed Heart, kept Brain and Stethoscope */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       <GlassmorphicCard className="p-6">
                         <div className="text-center mb-4">
                           <h3 className="text-lg font-semibold text-gray-900 mb-2">Brain Health</h3>
