@@ -18,13 +18,12 @@ import {
   Menu,
   X,
   Bot,
-  Sparkles,
-  FolderOpen
+  Sparkles
 } from 'lucide-react';
 import { User, MedicalRecord, TimelineEvent } from '../types';
-import RecordsSection from './RecordsSection';
 import ChatBot from './ChatBot/ChatBot';
 import GlassmorphicCard from './GlassmorphicCard';
+import HeartRateVisualization from './3D/HeartRateVisualization';
 
 interface DashboardProps {
   user: User;
@@ -49,7 +48,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   onAddRecord,
   onUploadFile,
 }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'records'>('dashboard');
   const [showAddRecord, setShowAddRecord] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [newRecord, setNewRecord] = useState({
@@ -154,11 +152,6 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   const healthSummary = getHealthSummary();
 
-  const sidebarItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Activity, description: 'Health overview' },
-    { id: 'records', label: 'Medical Records', icon: FolderOpen, description: 'Complete health records' },
-  ];
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-teal-50">
       {/* Mobile Header */}
@@ -217,34 +210,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Navigation */}
-          <div className="p-6 space-y-2">
-            {sidebarItems.map((item) => (
-              <motion.button
-                key={item.id}
-                whileHover={{ scale: 1.02, x: 5 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => {
-                  setActiveTab(item.id as any);
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                  activeTab === item.id
-                    ? 'bg-gradient-to-r from-blue-500 to-teal-500 text-white shadow-lg'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <item.icon className="w-5 h-5" />
-                <div className="text-left">
-                  <div className="font-medium">{item.label}</div>
-                  <div className={`text-xs ${activeTab === item.id ? 'text-blue-100' : 'text-gray-500'}`}>
-                    {item.description}
-                  </div>
-                </div>
-              </motion.button>
-            ))}
           </div>
 
           {/* Quick Actions */}
@@ -307,126 +272,80 @@ const Dashboard: React.FC<DashboardProps> = ({
         {/* Main Content */}
         <div className="flex-1 overflow-auto">
           <div className="p-6 lg:p-8">
-            <AnimatePresence mode="wait">
-              {activeTab === 'dashboard' && (
-                <motion.div
-                  key="dashboard"
+            <div className="space-y-8">
+              {/* Welcome Header */}
+              <div className="text-center lg:text-left">
+                <motion.h2 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="space-y-8"
+                  className="text-3xl lg:text-4xl font-bold text-gray-900 mb-2"
                 >
-                  {/* Welcome Header */}
-                  <div className="text-center lg:text-left">
-                    <motion.h2 
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="text-3xl lg:text-4xl font-bold text-gray-900 mb-2"
-                    >
-                      {getGreeting()}, {user.name}! 👋
-                    </motion.h2>
-                    <motion.p 
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.1 }}
-                      className="text-gray-600 text-lg"
-                    >
-                      Here's your health overview for today
-                    </motion.p>
-                  </div>
+                  {getGreeting()}, {user.name}! 👋
+                </motion.h2>
+                <motion.p 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="text-gray-600 text-lg"
+                >
+                  Here's your health overview for today
+                </motion.p>
+              </div>
 
-                  {/* Health Stats Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <GlassmorphicCard className="p-6">
-                      <div className="flex items-center space-x-4">
-                        <div className="p-3 bg-blue-100 rounded-xl">
-                          <FileText className="w-6 h-6 text-blue-600" />
-                        </div>
-                        <div>
-                          <p className="text-2xl font-bold text-gray-900">{healthSummary.totalRecords}</p>
-                          <p className="text-gray-600">Medical Records</p>
-                        </div>
-                      </div>
-                    </GlassmorphicCard>
-
-                    <GlassmorphicCard className="p-6">
-                      <div className="flex items-center space-x-4">
-                        <div className="p-3 bg-green-100 rounded-xl">
-                          <Activity className="w-6 h-6 text-green-600" />
-                        </div>
-                        <div>
-                          <p className="text-2xl font-bold text-gray-900">{healthSummary.categories}</p>
-                          <p className="text-gray-600">Categories</p>
-                        </div>
-                      </div>
-                    </GlassmorphicCard>
-
-                    <GlassmorphicCard className="p-6">
-                      <div className="flex items-center space-x-4">
-                        <div className="p-3 bg-purple-100 rounded-xl">
-                          <Calendar className="w-6 h-6 text-purple-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-900">{healthSummary.lastVisit}</p>
-                          <p className="text-gray-600">Last Visit</p>
-                        </div>
-                      </div>
-                    </GlassmorphicCard>
-
-                    <GlassmorphicCard className="p-6">
-                      <div className="flex items-center space-x-4">
-                        <div className="p-3 bg-red-100 rounded-xl">
-                          <Shield className="w-6 h-6 text-red-600" />
-                        </div>
-                        <div>
-                          <p className="text-lg font-bold text-gray-900">{user.bloodType}</p>
-                          <p className="text-gray-600">Blood Type</p>
-                        </div>
-                      </div>
-                    </GlassmorphicCard>
-                  </div>
-
-                  {/* Quick Access to Records */}
-                  <GlassmorphicCard className="p-8">
-                    <div className="text-center">
-                      <div className="w-20 h-20 bg-gradient-to-br from-blue-400 to-teal-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <FolderOpen className="w-10 h-10 text-white" />
-                      </div>
-                      <h3 className="text-2xl font-bold text-gray-900 mb-3">Access Your Medical Records</h3>
-                      <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-                        View your complete medical history, upload new documents, and manage prescriptions all in one secure location.
-                      </p>
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setActiveTab('records')}
-                        className="px-8 py-4 bg-gradient-to-r from-blue-500 via-indigo-500 to-teal-500 text-white rounded-xl hover:shadow-lg transition-all duration-200 font-semibold text-lg"
-                      >
-                        Open Medical Records
-                      </motion.button>
+              {/* Health Stats Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <GlassmorphicCard className="p-6">
+                  <div className="flex items-center space-x-4">
+                    <div className="p-3 bg-blue-100 rounded-xl">
+                      <FileText className="w-6 h-6 text-blue-600" />
                     </div>
-                  </GlassmorphicCard>
-                </motion.div>
-              )}
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">{healthSummary.totalRecords}</p>
+                      <p className="text-gray-600">Medical Records</p>
+                    </div>
+                  </div>
+                </GlassmorphicCard>
 
-              {activeTab === 'records' && (
-                <motion.div
-                  key="records"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                >
-                  <RecordsSection
-                    user={user}
-                    records={records}
-                    timelineEvents={timelineEvents}
-                    loading={loading}
-                    onAddRecord={onAddRecord}
-                    onUploadFile={onUploadFile}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
+                <GlassmorphicCard className="p-6">
+                  <div className="flex items-center space-x-4">
+                    <div className="p-3 bg-green-100 rounded-xl">
+                      <Activity className="w-6 h-6 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">{healthSummary.categories}</p>
+                      <p className="text-gray-600">Categories</p>
+                    </div>
+                  </div>
+                </GlassmorphicCard>
+
+                <GlassmorphicCard className="p-6">
+                  <div className="flex items-center space-x-4">
+                    <div className="p-3 bg-purple-100 rounded-xl">
+                      <Calendar className="w-6 h-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">{healthSummary.lastVisit}</p>
+                      <p className="text-gray-600">Last Visit</p>
+                    </div>
+                  </div>
+                </GlassmorphicCard>
+
+                <GlassmorphicCard className="p-6">
+                  <div className="flex items-center space-x-4">
+                    <div className="p-3 bg-red-100 rounded-xl">
+                      <Shield className="w-6 h-6 text-red-600" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-gray-900">{user.bloodType}</p>
+                      <p className="text-gray-600">Blood Type</p>
+                    </div>
+                  </div>
+                </GlassmorphicCard>
+              </div>
+
+              {/* Heart Rate Visualization */}
+              <HeartRateVisualization user={user} className="h-96" />
+            </div>
           </div>
         </div>
       </div>
@@ -630,7 +549,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       <ChatBot 
         user={user} 
         medicalRecords={records}
-        currentPage={activeTab}
+        currentPage="dashboard"
       />
     </div>
   );
