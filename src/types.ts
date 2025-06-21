@@ -31,50 +31,26 @@ export interface MedicalRecord {
   bloodSugar?: number;
 }
 
-export interface Medication {
+export interface UploadedPrescription {
   id: string;
-  name: string;
-  dosage: string;
-  frequency: string;
-  prescribedBy: string;
-  prescribedDate: string;
-  startDate: string;
-  endDate?: string;
-  status: 'active' | 'completed' | 'discontinued';
-  notes?: string;
-  sideEffects?: string[];
-}
-
-export interface Checkup {
-  id: string;
-  type: string;
-  doctorName: string;
-  facility: string;
-  date: string;
-  time: string;
-  duration: number; // in minutes
-  symptoms: string[];
-  diagnosis: string;
-  treatment: string;
-  followUpDate?: string;
-  vitals: {
-    bloodPressure?: string;
-    heartRate?: number;
-    temperature?: number;
-    weight?: number;
-    height?: number;
-  };
-  notes: string;
+  user_id: string;
+  file_name: string;
+  file_url: string;
+  uploaded_at: string;
+  file_type: string;
+  file_size: string;
+  status: 'new' | 'analyzed' | 'processing' | 'error';
+  ai_summary?: string;
 }
 
 export interface TimelineEvent {
   id: string;
-  type: 'checkup' | 'medication' | 'record' | 'emergency';
+  type: 'record' | 'prescription' | 'emergency';
   date: string;
   time?: string;
   title: string;
   description: string;
-  data: Checkup | Medication | MedicalRecord | any;
+  data: MedicalRecord | UploadedPrescription | any;
   importance: 'low' | 'medium' | 'high' | 'critical';
 }
 

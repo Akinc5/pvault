@@ -22,11 +22,13 @@ import { analyzeMedicalDocument } from '../ChatBot/chatbotService';
 interface PrescriptionUploadProps {
   userId: string;
   onAnalysisComplete?: (prescription: UploadedPrescription, analysis: string) => void;
+  onClose?: () => void;
 }
 
 const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ 
   userId, 
-  onAnalysisComplete 
+  onAnalysisComplete,
+  onClose 
 }) => {
   const {
     prescriptions,
@@ -229,6 +231,19 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      {onClose && (
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold text-gray-900">Prescription Upload</h2>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+      )}
+
       {/* Upload Section */}
       <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
         <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center space-x-2">

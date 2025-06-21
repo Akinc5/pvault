@@ -24,9 +24,10 @@ import PrescriptionUpload from './PrescriptionUpload/PrescriptionUpload';
 import ShareAccess from './ShareAccess';
 import EmergencyMode from './EmergencyMode';
 import ChatBot from './ChatBot/ChatBot';
-import { HealthTrendChart } from './HealthTrendChart';
+import HealthTrendChart from './HealthTrendChart';
 import XRayViewer from './XRayViewer';
 import Scene3D from './3D/Scene3D';
+import AddRecordModal from './AddRecordModal';
 
 interface MousePosition {
   x: number;
@@ -68,11 +69,12 @@ const Card3D: React.FC<Card3DProps> = ({ children, className = '', mousePosition
 
 const Dashboard: React.FC = () => {
   const { user, signOut } = useAuth();
-  const { profile, checkups, medications, medicalRecords, timelineEvents, loading } = useMedicalData();
+  const { medicalRecords, prescriptions, timelineEvents, loading, addMedicalRecord, uploadFile } = useMedicalData(user?.id || null);
   const [activeTab, setActiveTab] = useState('overview');
   const [showUpload, setShowUpload] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showEmergency, setShowEmergency] = useState(false);
+  const [showAddRecord, setShowAddRecord] = useState(false);
   const [mousePosition, setMousePosition] = useState<MousePosition>({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -87,15 +89,13 @@ const Dashboard: React.FC = () => {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  const recentCheckups = checkups?.slice(0, 3) || [];
-  const activeMedications = medications?.filter(med => med.status === 'active').slice(0, 3) || [];
   const recentRecords = medicalRecords?.slice(0, 3) || [];
+  const recentPrescriptions = prescriptions?.slice(0, 3) || [];
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Activity },
-    { id: 'checkups', label: 'Checkups', icon: Calendar },
-    { id: 'medications', label: 'Medications', icon: Pill },
     { id: 'records', label: 'Records', icon: FileText },
+    { id: 'prescriptions', label: 'Prescriptions', icon: Pill },
     { id: 'timeline', label: 'Timeline', icon: Clock },
     { id: 'trends', label: 'Health Trends', icon: TrendingUp },
     { id: 'xray', label: 'X-Ray Viewer', icon: Zap },
@@ -145,13 +145,21 @@ const Dashboard: React.FC = () => {
               </div>
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  HealthVault
+                  Patient Vault
                 </h1>
-                <p className="text-sm text-gray-600">Welcome back, {profile?.name || user?.email}</p>
+                <p className="text-sm text-gray-600">Welcome back, {user?.name || user?.email}</p>
               </div>
             </div>
             
             <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setShowAddRecord(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-xl hover:from-green-600 hover:to-teal-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Record</span>
+              </button>
+              
               <button
                 onClick={() => setShowUpload(true)}
                 className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl hover:from-blue-600 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
@@ -162,7 +170,7 @@ const Dashboard: React.FC = () => {
               
               <button
                 onClick={() => setShowShare(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-xl hover:from-green-600 hover:to-teal-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-blue-600 text-white rounded-xl hover:from-indigo-600 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
               >
                 <Share2 className="h-4 w-4" />
                 <span>Share</span>
@@ -217,35 +225,7 @@ const Dashboard: React.FC = () => {
         {activeTab === 'overview' && (
           <div className="space-y-8">
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card3D mousePosition={mousePosition}>
-                <GlassmorphicCard className="p-6 hover:shadow-2xl transition-all duration-300">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Total Checkups</p>
-                      <p className="text-3xl font-bold text-gray-900">{checkups?.length || 0}</p>
-                    </div>
-                    <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl">
-                      <Calendar className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                </GlassmorphicCard>
-              </Card3D>
-
-              <Card3D mousePosition={mousePosition}>
-                <GlassmorphicCard className="p-6 hover:shadow-2xl transition-all duration-300">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Active Medications</p>
-                      <p className="text-3xl font-bold text-gray-900">{activeMedications.length}</p>
-                    </div>
-                    <div className="p-3 bg-gradient-to-br from-green-500 to-green-600 rounded-xl">
-                      <Pill className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                </GlassmorphicCard>
-              </Card3D>
-
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <Card3D mousePosition={mousePosition}>
                 <GlassmorphicCard className="p-6 hover:shadow-2xl transition-all duration-300">
                   <div className="flex items-center justify-between">
@@ -253,8 +233,22 @@ const Dashboard: React.FC = () => {
                       <p className="text-sm font-medium text-gray-600">Medical Records</p>
                       <p className="text-3xl font-bold text-gray-900">{medicalRecords?.length || 0}</p>
                     </div>
-                    <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl">
+                    <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl">
                       <FileText className="h-6 w-6 text-white" />
+                    </div>
+                  </div>
+                </GlassmorphicCard>
+              </Card3D>
+
+              <Card3D mousePosition={mousePosition}>
+                <GlassmorphicCard className="p-6 hover:shadow-2xl transition-all duration-300">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Prescriptions</p>
+                      <p className="text-3xl font-bold text-gray-900">{prescriptions?.length || 0}</p>
+                    </div>
+                    <div className="p-3 bg-gradient-to-br from-green-500 to-green-600 rounded-xl">
+                      <Pill className="h-6 w-6 text-white" />
                     </div>
                   </div>
                 </GlassmorphicCard>
@@ -282,26 +276,29 @@ const Dashboard: React.FC = () => {
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                       <Sparkles className="h-5 w-5 mr-2 text-blue-500" />
-                      Recent Checkups
+                      Recent Records
                     </h3>
-                    <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                    <button 
+                      onClick={() => setActiveTab('records')}
+                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                    >
                       View All
                     </button>
                   </div>
                   <div className="space-y-4">
-                    {recentCheckups.map((checkup) => (
-                      <div key={checkup.id} className="flex items-center space-x-4 p-3 bg-white/50 rounded-lg hover:bg-white/70 transition-colors duration-200">
+                    {recentRecords.map((record) => (
+                      <div key={record.id} className="flex items-center space-x-4 p-3 bg-white/50 rounded-lg hover:bg-white/70 transition-colors duration-200">
                         <div className="p-2 bg-blue-100 rounded-lg">
-                          <Calendar className="h-4 w-4 text-blue-600" />
+                          <FileText className="h-4 w-4 text-blue-600" />
                         </div>
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900">{checkup.type}</p>
-                          <p className="text-sm text-gray-600">{checkup.doctor_name} • {checkup.date}</p>
+                          <p className="font-medium text-gray-900">{record.title}</p>
+                          <p className="text-sm text-gray-600">{record.doctorName} • {record.visitDate}</p>
                         </div>
                       </div>
                     ))}
-                    {recentCheckups.length === 0 && (
-                      <p className="text-gray-500 text-center py-4">No checkups recorded yet</p>
+                    {recentRecords.length === 0 && (
+                      <p className="text-gray-500 text-center py-4">No records yet</p>
                     )}
                   </div>
                 </GlassmorphicCard>
@@ -312,26 +309,29 @@ const Dashboard: React.FC = () => {
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                       <Zap className="h-5 w-5 mr-2 text-green-500" />
-                      Active Medications
+                      Recent Prescriptions
                     </h3>
-                    <button className="text-green-600 hover:text-green-800 text-sm font-medium">
+                    <button 
+                      onClick={() => setActiveTab('prescriptions')}
+                      className="text-green-600 hover:text-green-800 text-sm font-medium"
+                    >
                       View All
                     </button>
                   </div>
                   <div className="space-y-4">
-                    {activeMedications.map((medication) => (
-                      <div key={medication.id} className="flex items-center space-x-4 p-3 bg-white/50 rounded-lg hover:bg-white/70 transition-colors duration-200">
+                    {recentPrescriptions.map((prescription) => (
+                      <div key={prescription.id} className="flex items-center space-x-4 p-3 bg-white/50 rounded-lg hover:bg-white/70 transition-colors duration-200">
                         <div className="p-2 bg-green-100 rounded-lg">
                           <Pill className="h-4 w-4 text-green-600" />
                         </div>
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900">{medication.name}</p>
-                          <p className="text-sm text-gray-600">{medication.dosage} • {medication.frequency}</p>
+                          <p className="font-medium text-gray-900">{prescription.file_name}</p>
+                          <p className="text-sm text-gray-600">Status: {prescription.status}</p>
                         </div>
                       </div>
                     ))}
-                    {activeMedications.length === 0 && (
-                      <p className="text-gray-500 text-center py-4">No active medications</p>
+                    {recentPrescriptions.length === 0 && (
+                      <p className="text-gray-500 text-center py-4">No prescriptions yet</p>
                     )}
                   </div>
                 </GlassmorphicCard>
@@ -340,86 +340,15 @@ const Dashboard: React.FC = () => {
           </div>
         )}
 
-        {activeTab === 'checkups' && (
-          <Card3D mousePosition={mousePosition}>
-            <GlassmorphicCard className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Medical Checkups</h2>
-                <button className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl hover:from-blue-600 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105">
-                  <Plus className="h-4 w-4" />
-                  <span>Add Checkup</span>
-                </button>
-              </div>
-              <div className="space-y-4">
-                {checkups?.map((checkup) => (
-                  <div key={checkup.id} className="p-4 bg-white/50 rounded-lg hover:bg-white/70 transition-colors duration-200">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900">{checkup.type}</h3>
-                        <p className="text-gray-600 mt-1">{checkup.doctor_name} at {checkup.facility}</p>
-                        <p className="text-sm text-gray-500 mt-2">{checkup.date} at {checkup.time}</p>
-                        <p className="text-gray-700 mt-2">{checkup.diagnosis}</p>
-                      </div>
-                      <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                        {checkup.type}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                {(!checkups || checkups.length === 0) && (
-                  <p className="text-gray-500 text-center py-8">No checkups recorded yet</p>
-                )}
-              </div>
-            </GlassmorphicCard>
-          </Card3D>
-        )}
-
-        {activeTab === 'medications' && (
-          <Card3D mousePosition={mousePosition}>
-            <GlassmorphicCard className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Medications</h2>
-                <button className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-xl hover:from-green-600 hover:to-teal-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105">
-                  <Plus className="h-4 w-4" />
-                  <span>Add Medication</span>
-                </button>
-              </div>
-              <div className="space-y-4">
-                {medications?.map((medication) => (
-                  <div key={medication.id} className="p-4 bg-white/50 rounded-lg hover:bg-white/70 transition-colors duration-200">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900">{medication.name}</h3>
-                        <p className="text-gray-600 mt-1">{medication.dosage} • {medication.frequency}</p>
-                        <p className="text-sm text-gray-500 mt-2">Prescribed by {medication.prescribed_by}</p>
-                        <p className="text-sm text-gray-500">Start: {medication.start_date} {medication.end_date && `• End: ${medication.end_date}`}</p>
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        medication.status === 'active' 
-                          ? 'bg-green-100 text-green-800' 
-                          : medication.status === 'completed'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {medication.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                {(!medications || medications.length === 0) && (
-                  <p className="text-gray-500 text-center py-8">No medications recorded yet</p>
-                )}
-              </div>
-            </GlassmorphicCard>
-          </Card3D>
-        )}
-
         {activeTab === 'records' && (
           <Card3D mousePosition={mousePosition}>
             <GlassmorphicCard className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold text-gray-900">Medical Records</h2>
-                <button className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-xl hover:from-purple-600 hover:to-pink-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105">
+                <button 
+                  onClick={() => setShowAddRecord(true)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl hover:from-blue-600 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                >
                   <Plus className="h-4 w-4" />
                   <span>Add Record</span>
                 </button>
@@ -430,16 +359,16 @@ const Dashboard: React.FC = () => {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <h3 className="font-semibold text-gray-900">{record.title}</h3>
-                        <p className="text-gray-600 mt-1">{record.doctor_name}</p>
-                        <p className="text-sm text-gray-500 mt-2">Visit Date: {record.visit_date}</p>
-                        {record.file_url && (
+                        <p className="text-gray-600 mt-1">{record.doctorName}</p>
+                        <p className="text-sm text-gray-500 mt-2">Visit Date: {record.visitDate}</p>
+                        {record.fileUrl && (
                           <a 
-                            href={record.file_url} 
+                            href={record.fileUrl} 
                             target="_blank" 
                             rel="noopener noreferrer"
                             className="text-blue-600 hover:text-blue-800 text-sm mt-2 inline-block"
                           >
-                            View Document ({record.file_type})
+                            View Document ({record.fileType})
                           </a>
                         )}
                       </div>
@@ -453,6 +382,14 @@ const Dashboard: React.FC = () => {
                   <p className="text-gray-500 text-center py-8">No medical records uploaded yet</p>
                 )}
               </div>
+            </GlassmorphicCard>
+          </Card3D>
+        )}
+
+        {activeTab === 'prescriptions' && (
+          <Card3D mousePosition={mousePosition}>
+            <GlassmorphicCard className="p-6">
+              <PrescriptionUpload userId={user?.id || ''} />
             </GlassmorphicCard>
           </Card3D>
         )}
@@ -491,10 +428,25 @@ const Dashboard: React.FC = () => {
       </main>
 
       {/* Modals */}
+      {showAddRecord && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-modal-enter">
+            <AddRecordModal 
+              onClose={() => setShowAddRecord(false)}
+              onSave={addMedicalRecord}
+              onUploadFile={uploadFile}
+            />
+          </div>
+        </div>
+      )}
+
       {showUpload && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-modal-enter">
-            <PrescriptionUpload onClose={() => setShowUpload(false)} />
+            <PrescriptionUpload 
+              userId={user?.id || ''}
+              onClose={() => setShowUpload(false)} 
+            />
           </div>
         </div>
       )}
@@ -502,7 +454,10 @@ const Dashboard: React.FC = () => {
       {showShare && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-modal-enter">
-            <ShareAccess onClose={() => setShowShare(false)} />
+            <ShareAccess 
+              records={medicalRecords || []}
+              onClose={() => setShowShare(false)} 
+            />
           </div>
         </div>
       )}
@@ -510,13 +465,20 @@ const Dashboard: React.FC = () => {
       {showEmergency && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-modal-enter">
-            <EmergencyMode onClose={() => setShowEmergency(false)} />
+            <EmergencyMode 
+              user={user!}
+              onClose={() => setShowEmergency(false)} 
+            />
           </div>
         </div>
       )}
 
       {/* ChatBot */}
-      <ChatBot />
+      <ChatBot 
+        user={user}
+        medicalRecords={medicalRecords || []}
+        currentPage={activeTab}
+      />
     </div>
   );
 };

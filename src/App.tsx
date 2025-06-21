@@ -6,7 +6,6 @@ import ShareAccess from './components/ShareAccess';
 import ResetPasswordPage from './components/ResetPasswordPage';
 import ProfileLoadingFallback from './components/ProfileLoadingFallback';
 import { useAuth } from './hooks/useAuth';
-import { useMedicalData } from './hooks/useMedicalData';
 import { useState, useEffect } from 'react';
 import { Loader2, AlertTriangle, RefreshCw, CheckCircle } from 'lucide-react';
 
@@ -19,14 +18,6 @@ function App() {
     signOut, 
     retryProfileFetch 
   } = useAuth();
-  
-  const { 
-    medicalRecords, 
-    timelineEvents, 
-    loading: dataLoading, 
-    addMedicalRecord,
-    uploadFile
-  } = useMedicalData(user?.id || null);
   
   const [currentPage, setCurrentPage] = useState<'dashboard' | 'emergency' | 'share' | 'reset-password'>('dashboard');
   const [showResetPassword, setShowResetPassword] = useState(false);
@@ -149,7 +140,6 @@ function App() {
     console.log('App state:', {
       user: user ? 'authenticated' : 'not authenticated',
       authLoading,
-      dataLoading,
       showResetPassword,
       appError,
       authError,
@@ -157,7 +147,7 @@ function App() {
       connectionTimeout,
       profileRetryCount
     });
-  }, [user, authLoading, dataLoading, showResetPassword, appError, authError, connectionStatus, connectionTimeout, profileRetryCount]);
+  }, [user, authLoading, showResetPassword, appError, authError, connectionStatus, connectionTimeout, profileRetryCount]);
 
   // Show connection error screen (including auth errors)
   if (connectionStatus === 'error' || appError) {
@@ -290,7 +280,7 @@ function App() {
   if (currentPage === 'share') {
     return (
       <ShareAccess
-        records={medicalRecords}
+        records={[]}
         onBack={() => setCurrentPage('dashboard')}
       />
     );
@@ -309,17 +299,7 @@ function App() {
       />
       
       {/* Main Dashboard */}
-      <Dashboard
-        user={user}
-        records={medicalRecords}
-        timelineEvents={timelineEvents}
-        loading={dataLoading}
-        onLogout={handleLogout}
-        onEmergency={() => setCurrentPage('emergency')}
-        onShare={() => setCurrentPage('share')}
-        onAddRecord={addMedicalRecord}
-        onUploadFile={uploadFile}
-      />
+      <Dashboard />
     </div>
   );
 }

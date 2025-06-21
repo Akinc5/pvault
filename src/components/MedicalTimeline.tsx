@@ -18,9 +18,10 @@ import {
   TrendingUp,
   User,
   MapPin,
-  Timer
+  Timer,
+  Bot
 } from 'lucide-react';
-import { TimelineEvent, Checkup, Medication, MedicalRecord } from '../types';
+import { TimelineEvent, MedicalRecord, UploadedPrescription } from '../types';
 
 interface MedicalTimelineProps {
   events: TimelineEvent[];
@@ -35,14 +36,13 @@ const MedicalTimeline: React.FC<MedicalTimelineProps> = ({ events, onEventClick 
 
   const filters = [
     { value: 'all', label: 'All Events', color: 'bg-gray-100' },
-    { value: 'checkup', label: 'Checkups', color: 'bg-blue-100' },
-    { value: 'medication', label: 'Medications', color: 'bg-green-100' },
-    { value: 'record', label: 'Records', color: 'bg-purple-100' },
+    { value: 'record', label: 'Records', color: 'bg-blue-100' },
+    { value: 'prescription', label: 'Prescriptions', color: 'bg-green-100' },
     { value: 'emergency', label: 'Emergency', color: 'bg-red-100' },
   ];
 
   const filteredEvents = useMemo(() => {
-    let filtered = events;
+    let filtered = events || [];
 
     // Filter by search term
     if (searchTerm) {
@@ -100,12 +100,10 @@ const MedicalTimeline: React.FC<MedicalTimelineProps> = ({ events, onEventClick 
                                  importance === 'medium' ? 'text-blue-600' : 'text-gray-600'}`;
     
     switch (type) {
-      case 'checkup':
-        return <Stethoscope className={iconClass} />;
-      case 'medication':
-        return <Pill className={iconClass} />;
       case 'record':
         return <FileText className={iconClass} />;
+      case 'prescription':
+        return <Pill className={iconClass} />;
       case 'emergency':
         return <AlertTriangle className={iconClass} />;
       default:
@@ -126,53 +124,59 @@ const MedicalTimeline: React.FC<MedicalTimelineProps> = ({ events, onEventClick 
     }
   };
 
-  const renderCheckupDetails = (checkup: Checkup) => (
+  const renderRecordDetails = (record: MedicalRecord) => (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <div className="flex items-center space-x-2">
             <User className="w-4 h-4 text-gray-500" />
-            <span className="text-sm text-gray-600">Doctor: {checkup.doctorName}</span>
+            <span className="text-sm text-gray-600">Doctor: {record.doctorName}</span>
           </div>
           <div className="flex items-center space-x-2">
-            <MapPin className="w-4 h-4 text-gray-500" />
-            <span className="text-sm text-gray-600">Facility: {checkup.facility}</span>
+            <Calendar className="w-4 h-4 text-gray-500" />
+            <span className="text-sm text-gray-600">Visit Date: {record.visitDate}</span>
           </div>
           <div className="flex items-center space-x-2">
-            <Timer className="w-4 h-4 text-gray-500" />
-            <span className="text-sm text-gray-600">Duration: {checkup.duration} minutes</span>
+            <FileText className="w-4 h-4 text-gray-500" />
+            <span className="text-sm text-gray-600">Category: {record.category}</span>
           </div>
         </div>
         
-        {Object.keys(checkup.vitals).length > 0 && (
+        {(record.weight || record.height || record.bloodPressure || record.heartRate || record.bloodSugar) && (
           <div className="bg-white rounded-lg p-3 border border-gray-200">
             <h5 className="font-semibold text-gray-900 mb-2 flex items-center space-x-2">
               <Activity className="w-4 h-4" />
               <span>Vitals</span>
             </h5>
             <div className="space-y-1 text-sm">
-              {checkup.vitals.bloodPressure && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Blood Pressure:</span>
-                  <span className="font-medium">{checkup.vitals.bloodPressure}</span>
-                </div>
-              )}
-              {checkup.vitals.heartRate && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Heart Rate:</span>
-                  <span className="font-medium">{checkup.vitals.heartRate} bpm</span>
-                </div>
-              )}
-              {checkup.vitals.temperature && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Temperature:</span>
-                  <span className="font-medium">{checkup.vitals.temperature}°F</span>
-                </div>
-              )}
-              {checkup.vitals.weight && (
+              {record.weight && (
                 <div className="flex justify-between">
                   <span className="text-gray-600">Weight:</span>
-                  <span className="font-medium">{checkup.vitals.weight} lbs</span>
+                  <span className="font-medium">{record.weight} kg</span>
+                </div>
+              )}
+              {record.height && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Height:</span>
+                  <span className="font-medium">{record.height} cm</span>
+                </div>
+              )}
+              {record.bloodPressure && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Blood Pressure:</span>
+                  <span className="font-medium">{record.bloodPressure}</span>
+                </div>
+              )}
+              {record.heartRate && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Heart Rate:</span>
+                  <span className="font-medium">{record.heartRate} bpm</span>
+                </div>
+              )}
+              {record.bloodSugar && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Blood Sugar:</span>
+                  <span className="font-medium">{record.bloodSugar} mg/dL</span>
                 </div>
               )}
             </div>
@@ -180,108 +184,76 @@ const MedicalTimeline: React.FC<MedicalTimelineProps> = ({ events, onEventClick 
         )}
       </div>
       
-      {checkup.symptoms.length > 0 && (
+      {record.fileUrl && (
         <div>
-          <h5 className="font-semibold text-gray-900 mb-2">Symptoms</h5>
-          <div className="flex flex-wrap gap-2">
-            {checkup.symptoms.map((symptom, index) => (
-              <span key={index} className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
-                {symptom}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-      
-      <div>
-        <h5 className="font-semibold text-gray-900 mb-2">Diagnosis</h5>
-        <p className="text-gray-700 bg-blue-50 p-3 rounded-lg">{checkup.diagnosis}</p>
-      </div>
-      
-      <div>
-        <h5 className="font-semibold text-gray-900 mb-2">Treatment</h5>
-        <p className="text-gray-700 bg-green-50 p-3 rounded-lg">{checkup.treatment}</p>
-      </div>
-      
-      {checkup.notes && (
-        <div>
-          <h5 className="font-semibold text-gray-900 mb-2">Notes</h5>
-          <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">{checkup.notes}</p>
-        </div>
-      )}
-      
-      {checkup.followUpDate && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-          <div className="flex items-center space-x-2">
-            <Calendar className="w-4 h-4 text-amber-600" />
-            <span className="font-semibold text-amber-800">Follow-up scheduled: {checkup.followUpDate}</span>
-          </div>
+          <h5 className="font-semibold text-gray-900 mb-2">Document</h5>
+          <a 
+            href={record.fileUrl} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="inline-flex items-center space-x-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
+          >
+            <FileText className="w-4 h-4" />
+            <span>View Document ({record.fileType})</span>
+          </a>
         </div>
       )}
     </div>
   );
 
-  const renderMedicationDetails = (medication: Medication) => (
+  const renderPrescriptionDetails = (prescription: UploadedPrescription) => (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <div className="flex justify-between">
-            <span className="text-gray-600">Dosage:</span>
-            <span className="font-medium">{medication.dosage}</span>
+            <span className="text-gray-600">File Name:</span>
+            <span className="font-medium">{prescription.file_name}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">Frequency:</span>
-            <span className="font-medium">{medication.frequency}</span>
+            <span className="text-gray-600">File Type:</span>
+            <span className="font-medium">{prescription.file_type}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">Prescribed by:</span>
-            <span className="font-medium">{medication.prescribedBy}</span>
+            <span className="text-gray-600">File Size:</span>
+            <span className="font-medium">{prescription.file_size}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">Start Date:</span>
-            <span className="font-medium">{medication.startDate}</span>
-          </div>
-          {medication.endDate && (
-            <div className="flex justify-between">
-              <span className="text-gray-600">End Date:</span>
-              <span className="font-medium">{medication.endDate}</span>
-            </div>
-          )}
-        </div>
-        
-        <div className="space-y-2">
-          <div className="flex items-center space-x-2">
             <span className="text-gray-600">Status:</span>
             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-              medication.status === 'active' ? 'bg-green-100 text-green-800' :
-              medication.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-              'bg-red-100 text-red-800'
+              prescription.status === 'analyzed' ? 'bg-green-100 text-green-800' :
+              prescription.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
+              prescription.status === 'error' ? 'bg-red-100 text-red-800' :
+              'bg-blue-100 text-blue-800'
             }`}>
-              {medication.status.charAt(0).toUpperCase() + medication.status.slice(1)}
+              {prescription.status.charAt(0).toUpperCase() + prescription.status.slice(1)}
             </span>
           </div>
         </div>
       </div>
       
-      {medication.sideEffects && medication.sideEffects.length > 0 && (
+      {prescription.ai_summary && (
         <div>
-          <h5 className="font-semibold text-gray-900 mb-2">Possible Side Effects</h5>
-          <div className="flex flex-wrap gap-2">
-            {medication.sideEffects.map((effect, index) => (
-              <span key={index} className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">
-                {effect}
-              </span>
-            ))}
+          <h5 className="font-semibold text-gray-900 mb-2 flex items-center space-x-2">
+            <Bot className="w-4 h-4 text-blue-600" />
+            <span>AI Analysis</span>
+          </h5>
+          <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+            <p className="text-sm text-blue-700 whitespace-pre-wrap">{prescription.ai_summary}</p>
           </div>
         </div>
       )}
       
-      {medication.notes && (
-        <div>
-          <h5 className="font-semibold text-gray-900 mb-2">Notes</h5>
-          <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">{medication.notes}</p>
-        </div>
-      )}
+      <div>
+        <a 
+          href={prescription.file_url} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="inline-flex items-center space-x-2 px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors"
+        >
+          <FileText className="w-4 h-4" />
+          <span>View Prescription</span>
+        </a>
+      </div>
     </div>
   );
 
@@ -301,6 +273,13 @@ const MedicalTimeline: React.FC<MedicalTimelineProps> = ({ events, onEventClick 
 
   return (
     <div className="space-y-6">
+      <div className="text-center mb-8">
+        <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
+          Medical Timeline
+        </h2>
+        <p className="text-gray-600">Your complete medical history at a glance</p>
+      </div>
+
       {/* Filters and Search */}
       <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
         <div className="flex flex-col lg:flex-row gap-4">
@@ -427,16 +406,8 @@ const MedicalTimeline: React.FC<MedicalTimelineProps> = ({ events, onEventClick 
                       {/* Expanded Details */}
                       {expandedEvents.has(event.id) && (
                         <div className="border-t border-gray-200 pt-4">
-                          {event.type === 'checkup' && renderCheckupDetails(event.data as Checkup)}
-                          {event.type === 'medication' && renderMedicationDetails(event.data as Medication)}
-                          {event.type === 'record' && (
-                            <div className="space-y-2">
-                              <p className="text-gray-700">Medical record uploaded</p>
-                              <div className="text-sm text-gray-500">
-                                File: {(event.data as MedicalRecord).fileType} • {(event.data as MedicalRecord).fileSize}
-                              </div>
-                            </div>
-                          )}
+                          {event.type === 'record' && renderRecordDetails(event.data as MedicalRecord)}
+                          {event.type === 'prescription' && renderPrescriptionDetails(event.data as UploadedPrescription)}
                         </div>
                       )}
                     </div>

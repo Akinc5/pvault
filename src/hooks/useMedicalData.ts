@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { MedicalRecord, Checkup, Medication, TimelineEvent } from '../types';
+import { MedicalRecord, TimelineEvent, UploadedPrescription } from '../types';
 
 export const useMedicalData = (userId: string | null) => {
   const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>([]);
-  const [checkups, setCheckups] = useState<Checkup[]>([]);
-  const [medications, setMedications] = useState<Medication[]>([]);
+  const [prescriptions, setPrescriptions] = useState<UploadedPrescription[]>([]);
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -18,8 +17,7 @@ export const useMedicalData = (userId: string | null) => {
       setLoading(false);
       // Clear data when no user
       setMedicalRecords([]);
-      setCheckups([]);
-      setMedications([]);
+      setPrescriptions([]);
       setTimelineEvents([]);
     }
   }, [userId]);
@@ -41,8 +39,7 @@ export const useMedicalData = (userId: string | null) => {
       
       const dataPromise = Promise.all([
         fetchMedicalRecords(),
-        fetchCheckups(),
-        fetchMedications(),
+        fetchPrescriptions(),
       ]);
       
       await Promise.race([dataPromise, timeoutPromise]);
@@ -101,115 +98,49 @@ export const useMedicalData = (userId: string | null) => {
     }
   };
 
-  const fetchCheckups = async () => {
+  const fetchPrescriptions = async () => {
     if (!userId) return;
 
     try {
-      console.log('Fetching checkups...');
+      console.log('Fetching prescriptions...');
       
       const { data, error } = await supabase
-        .from('checkups')
+        .from('uploaded_prescriptions')
         .select('*')
         .eq('user_id', userId)
-        .order('date', { ascending: false });
+        .order('uploaded_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching checkups:', error);
+        console.error('Error fetching prescriptions:', error);
         return;
       }
 
-      const checkupsData: Checkup[] = (data || []).map(checkup => ({
-        id: checkup.id,
-        type: checkup.type,
-        doctorName: checkup.doctor_name,
-        facility: checkup.facility,
-        date: checkup.date,
-        time: checkup.time,
-        duration: checkup.duration,
-        symptoms: checkup.symptoms,
-        diagnosis: checkup.diagnosis,
-        treatment: checkup.treatment,
-        followUpDate: checkup.follow_up_date,
-        vitals: checkup.vitals,
-        notes: checkup.notes,
+      const prescriptionsData: UploadedPrescription[] = (data || []).map(prescription => ({
+        id: prescription.id,
+        user_id: prescription.user_id,
+        file_name: prescription.file_name,
+        file_url: prescription.file_url,
+        uploaded_at: prescription.uploaded_at,
+        file_type: prescription.file_type,
+        file_size: prescription.file_size,
+        status: prescription.status,
+        ai_summary: prescription.ai_summary,
       }));
 
-      console.log(`Fetched ${checkupsData.length} checkups`);
-      setCheckups(checkupsData);
+      console.log(`Fetched ${prescriptionsData.length} prescriptions`);
+      setPrescriptions(prescriptionsData);
     } catch (error) {
-      console.error('Error fetching checkups:', error);
-      setCheckups([]);
+      console.error('Error fetching prescriptions:', error);
+      setPrescriptions([]);
     }
   };
 
-  const fetchMedications = async () => {
-    if (!userId) return;
-
-    try {
-      console.log('Fetching medications...');
-      
-      const { data, error } = await supabase
-        .from('medications')
-        .select('*')
-        .eq('user_id', userId)
-        .order('prescribed_date', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching medications:', error);
-        return;
-      }
-
-      const medicationsData: Medication[] = (data || []).map(medication => ({
-        id: medication.id,
-        name: medication.name,
-        dosage: medication.dosage,
-        frequency: medication.frequency,
-        prescribedBy: medication.prescribed_by,
-        prescribedDate: medication.prescribed_date,
-        startDate: medication.start_date,
-        endDate: medication.end_date,
-        status: medication.status,
-        notes: medication.notes,
-        sideEffects: medication.side_effects,
-      }));
-
-      console.log(`Fetched ${medicationsData.length} medications`);
-      setMedications(medicationsData);
-    } catch (error) {
-      console.error('Error fetching medications:', error);
-      setMedications([]);
-    }
-  };
-
-  // Generate timeline events from all medical data
+  // Generate timeline events from medical data
   useEffect(() => {
     console.log('Generating timeline events...');
     
     const events: TimelineEvent[] = [
-      // Checkup events
-      ...checkups.map(checkup => ({
-        id: `checkup-${checkup.id}`,
-        type: 'checkup' as const,
-        date: checkup.date,
-        time: checkup.time,
-        title: checkup.type,
-        description: `Visit with ${checkup.doctorName} at ${checkup.facility}`,
-        data: checkup,
-        importance: checkup.type.toLowerCase().includes('urgent') ? 'high' as const : 'medium' as const
-      })),
-      
-      // Medication events
-      ...medications.map(medication => ({
-        id: `medication-${medication.id}`,
-        type: 'medication' as const,
-        date: medication.prescribedDate,
-        title: `${medication.name} Prescribed`,
-        description: `${medication.dosage} - ${medication.frequency}`,
-        data: medication,
-        importance: medication.status === 'active' ? 'medium' as const : 'low' as const
-      })),
-      
-      // Record events
+      // Medical record events
       ...medicalRecords.map(record => ({
         id: `record-${record.id}`,
         type: 'record' as const,
@@ -217,7 +148,18 @@ export const useMedicalData = (userId: string | null) => {
         title: record.title,
         description: `Medical record uploaded - ${record.category}`,
         data: record,
-        importance: 'low' as const
+        importance: 'medium' as const
+      })),
+      
+      // Prescription events
+      ...prescriptions.map(prescription => ({
+        id: `prescription-${prescription.id}`,
+        type: 'prescription' as const,
+        date: prescription.uploaded_at.split('T')[0],
+        title: `Prescription: ${prescription.file_name}`,
+        description: `Prescription uploaded - ${prescription.status}`,
+        data: prescription,
+        importance: prescription.status === 'analyzed' ? 'high' as const : 'medium' as const
       }))
     ];
 
@@ -226,7 +168,7 @@ export const useMedicalData = (userId: string | null) => {
     
     console.log(`Generated ${events.length} timeline events`);
     setTimelineEvents(events);
-  }, [checkups, medications, medicalRecords]);
+  }, [medicalRecords, prescriptions]);
 
   const addMedicalRecord = async (record: Omit<MedicalRecord, 'id' | 'uploadDate'>) => {
     if (!userId) return;
@@ -243,8 +185,8 @@ export const useMedicalData = (userId: string | null) => {
           doctor_name: record.doctorName,
           visit_date: record.visitDate,
           category: record.category,
-          file_type: record.fileType,
-          file_size: record.fileSize,
+          file_type: record.fileType || 'PDF',
+          file_size: record.fileSize || '0 MB',
           file_url: record.fileUrl || null,
           // Include vitals data - CRITICAL: Make sure height is included
           weight: record.weight || null,
@@ -342,8 +284,7 @@ export const useMedicalData = (userId: string | null) => {
 
   return {
     medicalRecords,
-    checkups,
-    medications,
+    prescriptions,
     timelineEvents,
     loading,
     addMedicalRecord,
