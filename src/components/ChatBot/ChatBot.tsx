@@ -24,7 +24,9 @@ import {
   ExternalLink,
   Sparkles,
   Moon,
-  Sun
+  Sun,
+  Clock,
+  RefreshCw
 } from 'lucide-react';
 import { User, MedicalRecord } from '../../types';
 import { generateChatResponse } from './chatbotService';
@@ -53,9 +55,15 @@ const ChatBot: React.FC<ChatBotProps> = ({ user, medicalRecords, currentPage = '
   const [isMobile, setIsMobile] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [lastMessageTime, setLastMessageTime] = useState(0);
+  const [showRateLimitToast, setShowRateLimitToast] = useState(false);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cooldownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Check if mobile
   useEffect(() => {
@@ -105,6 +113,15 @@ const ChatBot: React.FC<ChatBotProps> = ({ user, medicalRecords, currentPage = '
       document.body.style.overflow = 'unset';
     };
   }, [isMobile, isOpen]);
+
+  // Cleanup cooldown interval
+  useEffect(() => {
+    return () => {
+      if (cooldownIntervalRef.current) {
+        clearInterval(cooldownIntervalRef.current);
+      }
+    };
+  }, []);
 
   const addMessage = (message: Omit<Message, 'id' | 'timestamp'>) => {
     const newMessage: Message = {
@@ -198,11 +215,57 @@ const ChatBot: React.FC<ChatBotProps> = ({ user, medicalRecords, currentPage = '
     return null;
   };
 
+  // Enhanced throttling with cooldown
+  const checkMessageThrottle = (): boolean => {
+    const now = Date.now();
+    const timeSinceLastMessage = now - lastMessageTime;
+    const minInterval = 2000; // 2 second cooldown between messages
+
+    if (timeSinceLastMessage < minInterval) {
+      const remaining = Math.ceil((minInterval - timeSinceLastMessage) / 1000);
+      setCooldownRemaining(remaining);
+      
+      // Start cooldown countdown
+      if (cooldownIntervalRef.current) {
+        clearInterval(cooldownIntervalRef.current);
+      }
+      
+      cooldownIntervalRef.current = setInterval(() => {
+        setCooldownRemaining(prev => {
+          if (prev <= 1) {
+            if (cooldownIntervalRef.current) {
+              clearInterval(cooldownIntervalRef.current);
+            }
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      
+      return false;
+    }
+    
+    return true;
+  };
+
+  const showRateLimitNotification = () => {
+    setShowRateLimitToast(true);
+    setTimeout(() => setShowRateLimitToast(false), 5000);
+  };
+
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || isTyping) return;
+    if (!inputValue.trim() || isTyping || isProcessing) return;
+
+    // Check throttling
+    if (!checkMessageThrottle()) {
+      showRateLimitNotification();
+      return;
+    }
 
     const userMessage = inputValue.trim();
     setInputValue('');
+    setIsProcessing(true);
+    setLastMessageTime(Date.now());
 
     // Add user message
     addMessage({ type: 'user', content: userMessage });
@@ -216,11 +279,12 @@ const ChatBot: React.FC<ChatBotProps> = ({ user, medicalRecords, currentPage = '
       if (isEmergency) {
         setShowEmergencyModal(true);
       }
+      setIsProcessing(false);
       return;
     }
 
     try {
-      // Generate AI response
+      // Generate AI response with enhanced error handling
       const response = await generateChatResponse(
         userMessage, 
         user, 
@@ -230,9 +294,18 @@ const ChatBot: React.FC<ChatBotProps> = ({ user, medicalRecords, currentPage = '
       );
       
       await simulateTyping(response);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating chat response:', error);
-      await simulateTyping("I apologize, but I'm having trouble processing your request right now. Please try again in a moment, or contact your healthcare provider if this is urgent.");
+      
+      // Handle specific error types
+      if (error.message?.includes('rate limit')) {
+        await simulateTyping("⏰ **Service Temporarily Busy**\n\nI'm experiencing high demand right now. Please wait a moment and try asking your question again.\n\nFor urgent medical concerns, please contact your healthcare provider directly.");
+        showRateLimitNotification();
+      } else {
+        await simulateTyping("I apologize, but I'm having trouble processing your request right now. Please try again in a moment, or contact your healthcare provider if this is urgent.");
+      }
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -257,6 +330,11 @@ const ChatBot: React.FC<ChatBotProps> = ({ user, medicalRecords, currentPage = '
   ];
 
   const handleQuickAction = (text: string) => {
+    if (isProcessing || isTyping || cooldownRemaining > 0) {
+      showRateLimitNotification();
+      return;
+    }
+    
     setInputValue(text);
     setTimeout(() => handleSendMessage(), 100);
   };
@@ -266,6 +344,11 @@ const ChatBot: React.FC<ChatBotProps> = ({ user, medicalRecords, currentPage = '
     setIsMinimized(false);
     // Clear messages when closing
     setMessages([]);
+    setIsProcessing(false);
+    setCooldownRemaining(0);
+    if (cooldownIntervalRef.current) {
+      clearInterval(cooldownIntervalRef.current);
+    }
   };
 
   const handleOpen = () => {
@@ -290,6 +373,9 @@ const ChatBot: React.FC<ChatBotProps> = ({ user, medicalRecords, currentPage = '
     botBubble: 'bg-gray-100 text-gray-800',
     quickAction: 'bg-white hover:bg-gray-50 border-gray-200'
   };
+
+  // Check if send button should be disabled
+  const isSendDisabled = !inputValue.trim() || isTyping || isProcessing || cooldownRemaining > 0;
 
   // Floating chat bubble - only show when closed
   if (!isOpen) {
@@ -445,7 +531,8 @@ const ChatBot: React.FC<ChatBotProps> = ({ user, medicalRecords, currentPage = '
                   <button
                     key={index}
                     onClick={() => handleQuickAction(action.text)}
-                    className={`flex items-center space-x-3 p-3 ${themeClasses.quickAction} rounded-xl text-sm transition-colors border`}
+                    disabled={isProcessing || isTyping || cooldownRemaining > 0}
+                    className={`flex items-center space-x-3 p-3 ${themeClasses.quickAction} rounded-xl text-sm transition-colors border disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     <action.icon className="w-4 h-4 text-gray-500 flex-shrink-0" />
                     <div className="text-left">
@@ -467,18 +554,30 @@ const ChatBot: React.FC<ChatBotProps> = ({ user, medicalRecords, currentPage = '
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Ask Dr. AIVA anything..."
-                disabled={isTyping}
+                placeholder={cooldownRemaining > 0 ? `Wait ${cooldownRemaining}s...` : "Ask Dr. AIVA anything..."}
+                disabled={isTyping || isProcessing || cooldownRemaining > 0}
                 className={`flex-1 p-4 ${themeClasses.input} rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base disabled:opacity-50 transition-all duration-200`}
               />
               <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: isSendDisabled ? 1 : 1.05 }}
+                whileTap={{ scale: isSendDisabled ? 1 : 0.95 }}
                 onClick={handleSendMessage}
-                disabled={!inputValue.trim() || isTyping}
-                className="p-4 bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-xl hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                disabled={isSendDisabled}
+                className="p-4 bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-xl hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 relative"
               >
-                <Send className="w-5 h-5" />
+                {isProcessing || isTyping ? (
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                ) : cooldownRemaining > 0 ? (
+                  <Clock className="w-5 h-5" />
+                ) : (
+                  <Send className="w-5 h-5" />
+                )}
+                
+                {cooldownRemaining > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {cooldownRemaining}
+                  </span>
+                )}
               </motion.button>
             </div>
             
@@ -634,7 +733,8 @@ const ChatBot: React.FC<ChatBotProps> = ({ user, medicalRecords, currentPage = '
                         <button
                           key={index}
                           onClick={() => handleQuickAction(action.text)}
-                          className={`flex items-center space-x-2 p-2 ${themeClasses.quickAction} rounded-lg text-xs transition-colors border`}
+                          disabled={isProcessing || isTyping || cooldownRemaining > 0}
+                          className={`flex items-center space-x-2 p-2 ${themeClasses.quickAction} rounded-lg text-xs transition-colors border disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
                           <action.icon className="w-3 h-3 text-gray-500 flex-shrink-0" />
                           <span className="truncate text-left">{action.category}</span>
@@ -653,18 +753,30 @@ const ChatBot: React.FC<ChatBotProps> = ({ user, medicalRecords, currentPage = '
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
                       onKeyPress={handleKeyPress}
-                      placeholder="Ask Dr. AIVA anything..."
-                      disabled={isTyping}
+                      placeholder={cooldownRemaining > 0 ? `Wait ${cooldownRemaining}s...` : "Ask Dr. AIVA anything..."}
+                      disabled={isTyping || isProcessing || cooldownRemaining > 0}
                       className={`flex-1 p-3 ${themeClasses.input} rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm disabled:opacity-50 transition-all duration-200`}
                     />
                     <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
+                      whileHover={{ scale: isSendDisabled ? 1 : 1.05 }}
+                      whileTap={{ scale: isSendDisabled ? 1 : 0.95 }}
                       onClick={handleSendMessage}
-                      disabled={!inputValue.trim() || isTyping}
-                      className="p-3 bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-xl hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                      disabled={isSendDisabled}
+                      className="p-3 bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-xl hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 relative"
                     >
-                      <Send className="w-4 h-4" />
+                      {isProcessing || isTyping ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : cooldownRemaining > 0 ? (
+                        <Clock className="w-4 h-4" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                      
+                      {cooldownRemaining > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                          {cooldownRemaining}
+                        </span>
+                      )}
                     </motion.button>
                   </div>
                   
@@ -678,6 +790,31 @@ const ChatBot: React.FC<ChatBotProps> = ({ user, medicalRecords, currentPage = '
             )}
           </AnimatePresence>
         </motion.div>
+      </AnimatePresence>
+
+      {/* Rate Limit Toast Notification */}
+      <AnimatePresence>
+        {showRateLimitToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, x: 100 }}
+            animate={{ opacity: 1, y: 0, x: 0 }}
+            exit={{ opacity: 0, y: 50, x: 100 }}
+            className="fixed bottom-24 right-6 bg-yellow-500 text-white px-4 py-3 rounded-lg shadow-lg max-w-sm z-[60]"
+          >
+            <div className="flex items-start space-x-2">
+              <Clock className="w-5 h-5 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-semibold text-sm">Please wait</p>
+                <p className="text-xs opacity-90">
+                  {cooldownRemaining > 0 
+                    ? `Wait ${cooldownRemaining} seconds before sending another message.`
+                    : "I'm processing your request. Please wait a moment before trying again."
+                  }
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* Emergency Modal */}

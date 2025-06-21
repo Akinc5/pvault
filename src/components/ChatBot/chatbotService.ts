@@ -7,7 +7,7 @@ interface Message {
   timestamp: Date;
 }
 
-// Enhanced OpenAI API integration with medical focus
+// Enhanced OpenAI API integration with retry logic and rate limit handling
 const callOpenAI = async (messages: any[], userContext: string): Promise<string> => {
   const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
   
@@ -16,8 +16,13 @@ const callOpenAI = async (messages: any[], userContext: string): Promise<string>
     return generateEnhancedFallbackResponse(messages[messages.length - 1].content, userContext);
   }
 
-  try {
-    const systemPrompt = `You are Dr. AIVA, an advanced AI Virtual Medical Assistant for a medical records app called Patient Vault. You are a compassionate, knowledgeable, and professional medical AI assistant.
+  // Retry logic with exponential backoff
+  const maxRetries = 3;
+  const baseDelay = 1000; // 1 second base delay
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const systemPrompt = `You are Dr. AIVA, an advanced AI Virtual Medical Assistant for a medical records app called Patient Vault. You are a compassionate, knowledgeable, and professional medical AI assistant.
 
 CORE IDENTITY:
 - You are Dr. AIVA (AI Virtual Assistant)
@@ -56,64 +61,124 @@ ${userContext}
 
 Remember: You are a supportive medical AI assistant, not a replacement for professional medical care. Always encourage users to consult healthcare providers for personalized medical advice.`;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini', // Using the latest efficient model
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...messages
-        ],
-        max_tokens: 800,
-        temperature: 0.7,
-        presence_penalty: 0.1,
-        frequency_penalty: 0.1,
-      }),
-    });
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini', // Using the latest efficient model
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...messages
+          ],
+          max_tokens: 800,
+          temperature: 0.7,
+          presence_penalty: 0.1,
+          frequency_penalty: 0.1,
+        }),
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('OpenAI API Error:', response.status, errorData);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error(`OpenAI API Error (attempt ${attempt + 1}/${maxRetries + 1}):`, response.status, errorData);
+        
+        if (response.status === 401) {
+          throw new Error('Invalid OpenAI API key. Please check your API key configuration.');
+        } else if (response.status === 429) {
+          // Rate limit error - check if we should retry
+          if (attempt < maxRetries) {
+            const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff: 1s, 2s, 4s
+            console.log(`Rate limit hit, retrying in ${delay}ms... (attempt ${attempt + 2}/${maxRetries + 1})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue; // Retry the request
+          } else {
+            throw new Error('RATE_LIMIT_EXCEEDED');
+          }
+        } else if (response.status === 500) {
+          throw new Error('OpenAI service is temporarily unavailable. Please try again later.');
+        } else if (response.status >= 500) {
+          // Server errors - retry if we have attempts left
+          if (attempt < maxRetries) {
+            const delay = baseDelay * (attempt + 1); // Linear backoff for server errors
+            console.log(`Server error, retrying in ${delay}ms... (attempt ${attempt + 2}/${maxRetries + 1})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          } else {
+            throw new Error(`OpenAI API server error: ${response.status}`);
+          }
+        } else {
+          throw new Error(`OpenAI API error: ${response.status}`);
+        }
+      }
+
+      const data = await response.json();
       
-      if (response.status === 401) {
-        throw new Error('Invalid OpenAI API key. Please check your API key configuration.');
-      } else if (response.status === 429) {
-        throw new Error('OpenAI API rate limit exceeded. Please try again in a moment.');
-      } else if (response.status === 500) {
-        throw new Error('OpenAI service is temporarily unavailable. Please try again later.');
-      } else {
-        throw new Error(`OpenAI API error: ${response.status}`);
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        throw new Error('Invalid response format from OpenAI API');
+      }
+
+      // Success - return the response
+      return data.choices[0].message.content || 'I apologize, but I couldn\'t generate a response. Please try again.';
+
+    } catch (error: any) {
+      console.error(`OpenAI API error on attempt ${attempt + 1}:`, error);
+      
+      // If this is the last attempt or a non-retryable error, handle it
+      if (attempt === maxRetries || !shouldRetryError(error)) {
+        // Provide specific error messages for common issues
+        if (error.message.includes('Invalid OpenAI API key')) {
+          return "🔑 **API Configuration Issue**\n\nIt looks like there's an issue with the OpenAI API key configuration. Please contact support to resolve this issue.\n\nIn the meantime, I can still help with basic health questions using my built-in knowledge base!";
+        } else if (error.message === 'RATE_LIMIT_EXCEEDED') {
+          return "⏰ **Service Temporarily Busy**\n\nI'm experiencing high demand right now. **Please wait a few seconds and try asking your question again.**\n\nFor urgent medical concerns, please contact your healthcare provider directly.\n\n💡 **Tip:** I have extensive built-in medical knowledge and can still help with many health questions!";
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          return "🌐 **Connection Issue**\n\nI'm having trouble connecting to my advanced AI services right now. Let me help you with my built-in medical knowledge instead!\n\nWhat health topic would you like to discuss?";
+        } else if (error.message.includes('server error') || error.message.includes('unavailable')) {
+          return "🔧 **Service Temporarily Unavailable**\n\nMy advanced AI features are temporarily unavailable, but I can still help with health questions using my comprehensive medical knowledge base.\n\nWhat would you like to know about?";
+        }
+        
+        // Fallback to enhanced response system
+        return generateEnhancedFallbackResponse(messages[messages.length - 1].content, userContext);
+      }
+
+      // If we should retry, continue to next iteration
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.log(`Retrying OpenAI request in ${delay}ms... (attempt ${attempt + 2}/${maxRetries + 1})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
-
-    const data = await response.json();
-    
-    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      throw new Error('Invalid response format from OpenAI API');
-    }
-
-    return data.choices[0].message.content || 'I apologize, but I couldn\'t generate a response. Please try again.';
-  } catch (error: any) {
-    console.error('OpenAI API error:', error);
-    
-    // Provide specific error messages for common issues
-    if (error.message.includes('Invalid OpenAI API key')) {
-      return "🔑 **API Configuration Issue**\n\nIt looks like there's an issue with the OpenAI API key configuration. Please contact support to resolve this issue.\n\nIn the meantime, I can still help with basic health questions using my built-in knowledge base!";
-    } else if (error.message.includes('rate limit')) {
-      return "⏰ **Service Temporarily Busy**\n\nI'm experiencing high demand right now. Please wait a moment and try asking your question again.\n\nFor urgent medical concerns, please contact your healthcare provider directly.";
-    } else if (error.message.includes('network') || error.message.includes('fetch')) {
-      return "🌐 **Connection Issue**\n\nI'm having trouble connecting to my advanced AI services right now. Let me help you with my built-in medical knowledge instead!\n\nWhat health topic would you like to discuss?";
-    }
-    
-    return generateEnhancedFallbackResponse(messages[messages.length - 1].content, userContext);
   }
+
+  // This should never be reached, but just in case
+  return generateEnhancedFallbackResponse(messages[messages.length - 1].content, userContext);
 };
 
-// Enhanced Google Gemini API integration
+// Helper function to determine if an error should be retried
+const shouldRetryError = (error: any): boolean => {
+  const message = error.message?.toLowerCase() || '';
+  
+  // Retry on rate limits and server errors
+  if (message.includes('rate_limit_exceeded') || 
+      message.includes('server error') || 
+      message.includes('unavailable') ||
+      message.includes('timeout') ||
+      message.includes('network')) {
+    return true;
+  }
+  
+  // Don't retry on authentication or client errors
+  if (message.includes('invalid') || 
+      message.includes('unauthorized') || 
+      message.includes('forbidden')) {
+    return false;
+  }
+  
+  return false;
+};
+
+// Enhanced Google Gemini API integration with retry logic
 const callGemini = async (messages: any[], userContext: string): Promise<string> => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   
@@ -122,8 +187,12 @@ const callGemini = async (messages: any[], userContext: string): Promise<string>
     return generateEnhancedFallbackResponse(messages[messages.length - 1].content, userContext);
   }
 
-  try {
-    const prompt = `You are Dr. AIVA, an AI Virtual Medical Assistant. You provide helpful, empathetic medical and mental health guidance while always emphasizing the importance of professional medical care.
+  const maxRetries = 2; // Fewer retries for Gemini
+  const baseDelay = 1000;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const prompt = `You are Dr. AIVA, an AI Virtual Medical Assistant. You provide helpful, empathetic medical and mental health guidance while always emphasizing the importance of professional medical care.
 
 User Context: ${userContext}
 
@@ -139,40 +208,52 @@ Provide a helpful, medically-informed response that:
 
 Remember: You cannot diagnose, prescribe medications, or replace professional medical care.`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          maxOutputTokens: 800,
-          temperature: 0.7,
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        safetySettings: [
-          {
-            category: "HARM_CATEGORY_MEDICAL",
-            threshold: "BLOCK_NONE"
-          }
-        ]
-      }),
-    });
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          generationConfig: {
+            maxOutputTokens: 800,
+            temperature: 0.7,
+          },
+          safetySettings: [
+            {
+              category: "HARM_CATEGORY_MEDICAL",
+              threshold: "BLOCK_NONE"
+            }
+          ]
+        }),
+      });
 
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`);
+      if (!response.ok) {
+        if (response.status === 429 && attempt < maxRetries) {
+          const delay = baseDelay * (attempt + 1);
+          console.log(`Gemini rate limit, retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        throw new Error(`Gemini API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.candidates[0]?.content?.parts[0]?.text || 'I apologize, but I couldn\'t generate a response. Please try again.';
+
+    } catch (error) {
+      console.error(`Gemini API error on attempt ${attempt + 1}:`, error);
+      if (attempt === maxRetries) {
+        return generateEnhancedFallbackResponse(messages[messages.length - 1].content, userContext);
+      }
     }
-
-    const data = await response.json();
-    return data.candidates[0]?.content?.parts[0]?.text || 'I apologize, but I couldn\'t generate a response. Please try again.';
-  } catch (error) {
-    console.error('Gemini API error:', error);
-    return generateEnhancedFallbackResponse(messages[messages.length - 1].content, userContext);
   }
+
+  return generateEnhancedFallbackResponse(messages[messages.length - 1].content, userContext);
 };
 
 // Enhanced fallback response system with comprehensive medical knowledge
