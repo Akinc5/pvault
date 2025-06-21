@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar styles for chatbot */
+/* Custom scrollbar styles */
 .scrollbar-thin {
   scrollbar-width: thin;
 }
@@ -38,7 +38,15 @@
   background: #9ca3af;
 }
 
-/* Prevent text selection on chat bubbles for better UX */
+/* Prevent text selection on interactive elements */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Allow text selection in chat bubbles */
 .chat-bubble {
   user-select: text;
   -webkit-user-select: text;
@@ -68,7 +76,7 @@
   animation: bounce 1.4s infinite ease-in-out both;
 }
 
-/* Pulse animation for chat button */
+/* Pulse animation for notifications */
 @keyframes ping {
   75%, 100% {
     transform: scale(2);
@@ -78,4 +86,28 @@
 
 .animate-ping {
   animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Glassmorphism effects */
+.glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Focus styles for accessibility */
+.focus-ring:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Print styles for medical records */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-break {
+    page-break-before: always;
+  }
 }
