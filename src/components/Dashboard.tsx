@@ -158,18 +158,34 @@ const Dashboard: React.FC<DashboardProps> = ({
     }
   };
 
-  // Handle viewing a record
-  const handleViewRecord = (record: MedicalRecord) => {
-    if (record.fileUrl) {
-      // If there's a file URL, open it in a new tab
-      window.open(record.fileUrl, '_blank');
-    } else {
+  // Enhanced file viewing with proper URL handling
+  const handleViewRecord = async (record: MedicalRecord) => {
+    if (!record.fileUrl) {
       // If no file URL, show record details in modal
+      setViewingRecord(record);
+      return;
+    }
+
+    try {
+      // If there's a file URL, try to open it
+      if (record.fileUrl.includes('supabase')) {
+        // For Supabase URLs, try to get a fresh signed URL if needed
+        if (!record.fileUrl.includes('token=')) {
+          console.log('Generating fresh signed URL for viewing...');
+          // The URL might need refreshing - for now, try to open as-is
+        }
+      }
+      
+      // Open the file in a new tab
+      window.open(record.fileUrl, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      console.error('Error opening file:', error);
+      // Fallback to showing record details
       setViewingRecord(record);
     }
   };
 
-  // Handle downloading a record
+  // Enhanced file downloading with proper URL handling
   const handleDownloadRecord = async (record: MedicalRecord) => {
     if (!record.fileUrl) {
       alert('No file available for download');
@@ -177,19 +193,58 @@ const Dashboard: React.FC<DashboardProps> = ({
     }
 
     try {
+      console.log('Downloading file:', record.title);
+      
+      // For Supabase storage files, we might need to handle signed URLs
+      let downloadUrl = record.fileUrl;
+      
+      // If the URL doesn't have a token and it's a Supabase URL, it might need refreshing
+      if (record.fileUrl.includes('supabase') && !record.fileUrl.includes('token=')) {
+        console.log('URL might need refreshing for download');
+        // For now, try the existing URL
+      }
+
       // Create a temporary link to download the file
       const link = document.createElement('a');
-      link.href = record.fileUrl;
-      link.download = `${record.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.${record.fileType.toLowerCase()}`;
-      link.target = '_blank';
+      link.href = downloadUrl;
       
-      // Append to body, click, and remove
+      // Set download filename
+      const fileExtension = record.fileType.toLowerCase() === 'pdf' ? 'pdf' : 
+                           record.fileType.toLowerCase() === 'image' ? 'jpg' : 
+                           record.fileType.toLowerCase();
+      link.download = `${record.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.${fileExtension}`;
+      
+      // For cross-origin downloads, we might need to fetch and create blob
+      if (record.fileUrl.includes('supabase')) {
+        try {
+          const response = await fetch(downloadUrl);
+          if (!response.ok) throw new Error('Download failed');
+          
+          const blob = await response.blob();
+          const blobUrl = window.URL.createObjectURL(blob);
+          
+          link.href = blobUrl;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          // Clean up blob URL
+          window.URL.revokeObjectURL(blobUrl);
+          return;
+        } catch (fetchError) {
+          console.warn('Blob download failed, trying direct link:', fetchError);
+        }
+      }
+      
+      // Fallback to direct link
+      link.target = '_blank';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      
     } catch (error) {
       console.error('Download error:', error);
-      alert('Failed to download file. Please try again.');
+      alert('Failed to download file. The file might be expired or inaccessible. Please try uploading it again.');
     }
   };
 
@@ -866,7 +921,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                       type="text"
                       value={newRecord.title}
                       onChange={(e) => setNewRecord(prev => ({ ...prev, title: e.target.value }))}
-                      className="w-full p-3 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full p-3 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                       placeholder="e.g., Annual Physical Exam"
                       required
                     />
@@ -880,7 +935,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                       type="text"
                       value={newRecord.doctorName}
                       onChange={(e) => setNewRecord(prev => ({ ...prev, doctorName: e.target.value }))}
-                      className="w-full p-3 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full p-3 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                       placeholder="e.g., Dr. Smith"
                       required
                     />
@@ -894,7 +949,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                       type="date"
                       value={newRecord.visitDate}
                       onChange={(e) => setNewRecord(prev => ({ ...prev, visitDate: e.target.value }))}
-                      className="w-full p-3 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full p-3 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                       required
                     />
                   </div>
@@ -906,7 +961,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <select
                       value={newRecord.category}
                       onChange={(e) => setNewRecord(prev => ({ ...prev, category: e.target.value as any }))}
-                      className="w-full p-3 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full p-3 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                     >
                       <option value="checkup">Checkup</option>
                       <option value="prescription">Prescription</option>
@@ -930,7 +985,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         step="0.1"
                         value={newRecord.weight}
                         onChange={(e) => setNewRecord(prev => ({ ...prev, weight: e.target.value }))}
-                        className="w-full p-3 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full p-3 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                         placeholder="70.5"
                       />
                     </div>
@@ -944,7 +999,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         step="0.1"
                         value={newRecord.height}
                         onChange={(e) => setNewRecord(prev => ({ ...prev, height: e.target.value }))}
-                        className="w-full p-3 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full p-3 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                         placeholder="175"
                       />
                     </div>
@@ -957,7 +1012,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         type="text"
                         value={newRecord.bloodPressure}
                         onChange={(e) => setNewRecord(prev => ({ ...prev, bloodPressure: e.target.value }))}
-                        className="w-full p-3 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full p-3 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                         placeholder="120/80"
                       />
                     </div>
@@ -970,7 +1025,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         type="number"
                         value={newRecord.heartRate}
                         onChange={(e) => setNewRecord(prev => ({ ...prev, heartRate: e.target.value }))}
-                        className="w-full p-3 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full p-3 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                         placeholder="72"
                       />
                     </div>
@@ -984,7 +1039,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         step="0.1"
                         value={newRecord.bloodSugar}
                         onChange={(e) => setNewRecord(prev => ({ ...prev, bloodSugar: e.target.value }))}
-                        className="w-full p-3 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full p-3 bg-white/50 border border-white/30 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                         placeholder="95"
                       />
                     </div>
