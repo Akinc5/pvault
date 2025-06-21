@@ -84,14 +84,16 @@ export const useMedicalData = (userId: string | null) => {
         fileSize: record.file_size,
         uploadDate: record.uploaded_at.split('T')[0],
         fileUrl: record.file_url,
-        // Include vitals data
+        // Include vitals data - IMPORTANT: Include height for BMI calculation
         weight: record.weight,
+        height: record.height, // This is crucial for BMI calculation
         bloodPressure: record.blood_pressure,
         heartRate: record.heart_rate,
         bloodSugar: record.blood_sugar,
       }));
 
       console.log(`Fetched ${records.length} medical records`);
+      console.log('Records with height/weight data:', records.filter(r => r.height || r.weight));
       setMedicalRecords(records);
     } catch (error) {
       console.error('Error fetching medical records:', error);
@@ -231,6 +233,7 @@ export const useMedicalData = (userId: string | null) => {
 
     try {
       console.log('Adding medical record:', record.title);
+      console.log('Record data:', record); // Debug log
       
       const { data, error } = await supabase
         .from('medical_records')
@@ -243,8 +246,9 @@ export const useMedicalData = (userId: string | null) => {
           file_type: record.fileType,
           file_size: record.fileSize,
           file_url: record.fileUrl || null,
-          // Include vitals data
+          // Include vitals data - CRITICAL: Make sure height is included
           weight: record.weight || null,
+          height: record.height || null, // This is essential for BMI calculation
           blood_pressure: record.bloodPressure || null,
           heart_rate: record.heartRate || null,
           blood_sugar: record.bloodSugar || null,
@@ -257,7 +261,9 @@ export const useMedicalData = (userId: string | null) => {
         throw error;
       }
 
-      console.log('Medical record added successfully');
+      console.log('Medical record added successfully:', data);
+      
+      // Refresh medical records to show the new data
       await fetchMedicalRecords();
       return data;
     } catch (error) {
