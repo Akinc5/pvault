@@ -385,55 +385,6 @@ const Dashboard: React.FC<DashboardProps> = ({
 
                   {/* Heart Rate Visualization */}
                   <HeartRateVisualization user={user} className="h-96" />
-
-                  {/* Recent Records - MOVED TO BOTTOM */}
-                  <GlassmorphicCard className="p-8">
-                    <div className="flex items-center justify-between mb-6">
-                      <h3 className="text-2xl font-bold text-gray-900">Recent Medical Records</h3>
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setActiveTab('timeline')}
-                        className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
-                      >
-                        View All
-                      </motion.button>
-                    </div>
-
-                    {loading ? (
-                      <div className="flex items-center justify-center py-12">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-                      </div>
-                    ) : healthSummary.recentRecords.length > 0 ? (
-                      <div className="space-y-4">
-                        {healthSummary.recentRecords.map((record) => (
-                          <motion.div
-                            key={record.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="flex items-center space-x-4 p-4 bg-white/50 rounded-xl border border-white/30"
-                          >
-                            <div className="p-2 bg-gray-100 rounded-lg">
-                              <FileText className="w-5 h-5 text-gray-600" />
-                            </div>
-                            <div className="flex-1">
-                              <h4 className="font-semibold text-gray-900">{record.title}</h4>
-                              <p className="text-gray-600">Dr. {record.doctorName} • {record.visitDate}</p>
-                            </div>
-                            <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
-                              {record.category}
-                            </span>
-                          </motion.div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-12">
-                        <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                        <p className="text-gray-500 text-lg">No medical records yet</p>
-                        <p className="text-gray-400">Add your first record to get started</p>
-                      </div>
-                    )}
-                  </GlassmorphicCard>
                 </motion.div>
               )}
 
