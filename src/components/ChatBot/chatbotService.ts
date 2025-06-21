@@ -664,7 +664,7 @@ export const analyzeMedicalDocument = (record: MedicalRecord): string => {
   return analysis.join('\n');
 };
 
-// Main chat response generator with OpenRouter as primary service
+// Main chat response generator with improved error handling
 export const generateChatResponse = async (
   userInput: string,
   user: User | null,
@@ -712,33 +712,26 @@ CURRENT CONTEXT:
     content: userInput
   });
 
-  // Try services in order: OpenRouter (primary) → OpenAI (fallback) → Gemini (fallback) → Enhanced local responses
-  
-  // 1. Try OpenRouter first (Primary AI Service)
-  try {
-    console.log('🚀 Attempting OpenRouter API...');
-    return await callOpenRouter(apiMessages, userContext);
-  } catch (error: any) {
-    console.warn('OpenRouter failed, trying OpenAI fallback...', error.message);
+  // Try services in order with proper error handling
+  const services = [
+    { name: 'OpenRouter', fn: () => callOpenRouter(apiMessages, userContext) },
+    { name: 'OpenAI', fn: () => callOpenAI(apiMessages, userContext) },
+    { name: 'Gemini', fn: () => callGemini(apiMessages, userContext) }
+  ];
+
+  for (const service of services) {
+    try {
+      console.log(`🚀 Attempting ${service.name} API...`);
+      const response = await service.fn();
+      console.log(`✅ ${service.name} API successful`);
+      return response;
+    } catch (error: any) {
+      console.warn(`${service.name} failed:`, error.message);
+      // Continue to next service
+    }
   }
 
-  // 2. Try OpenAI as fallback
-  try {
-    console.log('🔄 Attempting OpenAI API fallback...');
-    return await callOpenAI(apiMessages, userContext);
-  } catch (error: any) {
-    console.warn('OpenAI failed, trying Gemini fallback...', error.message);
-  }
-
-  // 3. Try Gemini as secondary fallback
-  try {
-    console.log('🔄 Attempting Gemini API fallback...');
-    return await callGemini(apiMessages, userContext);
-  } catch (error: any) {
-    console.warn('Gemini failed, using enhanced local responses...', error.message);
-  }
-
-  // 4. Use enhanced fallback system (always available)
-  console.log('📚 Using enhanced local medical knowledge base...');
+  // If all API services fail, use enhanced fallback system
+  console.log('📚 All API services failed, using enhanced local medical knowledge base...');
   return generateEnhancedFallbackResponse(userInput, userContext);
 };
