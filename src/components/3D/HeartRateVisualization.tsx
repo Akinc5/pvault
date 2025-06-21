@@ -309,81 +309,61 @@ const HeartRateVisualization: React.FC<HeartRateVisualizationProps> = ({
 
   return (
     <div className={`bg-white/20 backdrop-blur-xl rounded-3xl border border-white/30 shadow-2xl p-8 ${className}`}>
-      <div className="space-y-6 h-full">
-        {/* Header with BPM and Status - Simplified without 3D heart */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-6">
-            {heartRateData ? (
-              <>
-                <div className="text-center">
-                  <motion.div
-                    animate={{
-                      scale: isBeating ? 1.05 : 1,
-                      textShadow: isBeating ? "0 0 20px rgba(239, 68, 68, 0.8)" : "0 0 10px rgba(239, 68, 68, 0.4)"
-                    }}
-                    transition={{ duration: 0.2 }}
-                    className="text-5xl font-bold text-red-500 mb-2"
-                  >
-                    {heartRateData.heart_rate}
-                  </motion.div>
-                  <div className="text-lg text-gray-700 font-medium">BPM</div>
-                </div>
-                
-                <div className={`px-4 py-3 rounded-xl ${heartRateStatus?.bgColor} border border-gray-300/50`}>
-                  <div className="flex items-center space-x-3">
+      {/* Fixed Layout with proper spacing */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 h-full">
+        
+        {/* Left Column: Heart Rate Monitor */}
+        <div className="xl:col-span-2 space-y-6">
+          {/* Header with BPM and Status */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-6">
+              {heartRateData ? (
+                <>
+                  <div className="text-center">
                     <motion.div
                       animate={{
-                        scale: isBeating ? 1.2 : 1,
+                        scale: isBeating ? 1.05 : 1,
+                        textShadow: isBeating ? "0 0 20px rgba(239, 68, 68, 0.8)" : "0 0 10px rgba(239, 68, 68, 0.4)"
                       }}
                       transition={{ duration: 0.2 }}
+                      className="text-5xl font-bold text-red-500 mb-2"
                     >
-                      <Heart className={`w-6 h-6 ${heartRateStatus?.color}`} />
+                      {heartRateData.heart_rate}
                     </motion.div>
-                    <div>
-                      <div className={`text-lg font-semibold ${heartRateStatus?.color}`}>
-                        {heartRateStatus?.status}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        Heart Rate Status
+                    <div className="text-lg text-gray-700 font-medium">BPM</div>
+                  </div>
+                  
+                  <div className={`px-4 py-3 rounded-xl ${heartRateStatus?.bgColor} border border-gray-300/50`}>
+                    <div className="flex items-center space-x-3">
+                      <motion.div
+                        animate={{
+                          scale: isBeating ? 1.2 : 1,
+                        }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <Heart className={`w-6 h-6 ${heartRateStatus?.color}`} />
+                      </motion.div>
+                      <div>
+                        <div className={`text-lg font-semibold ${heartRateStatus?.color}`}>
+                          {heartRateStatus?.status}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          Heart Rate Status
+                        </div>
                       </div>
                     </div>
                   </div>
+                </>
+              ) : (
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-gray-400 mb-2">--</div>
+                  <div className="text-sm text-gray-500">No heart rate data</div>
                 </div>
-              </>
-            ) : (
-              <div className="text-center">
-                <div className="text-3xl font-bold text-gray-400 mb-2">--</div>
-                <div className="text-sm text-gray-500">No heart rate data</div>
-              </div>
-            )}
-          </div>
-
-          {/* Pulse indicator */}
-          {heartRateData && (
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <motion.div
-                  animate={{
-                    scale: isBeating ? 1.3 : 1,
-                    opacity: isBeating ? 1 : 0.6,
-                  }}
-                  transition={{ duration: 0.2 }}
-                  className="w-4 h-4 bg-red-400 rounded-full"
-                />
-                <span className="text-sm text-gray-600 font-medium">Live Monitor</span>
-              </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Large ECG Waveform Monitor */}
-        {heartRateData ? (
-          <div className="bg-black/90 rounded-2xl p-6 border border-gray-700/50 flex-1">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                <Activity className="w-6 h-6 text-green-400" />
-                <span className="text-lg text-green-400 font-semibold">ECG Rhythm Monitor</span>
-              </div>
+            {/* Pulse indicator */}
+            {heartRateData && (
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2">
                   <motion.div
@@ -392,218 +372,252 @@ const HeartRateVisualization: React.FC<HeartRateVisualizationProps> = ({
                       opacity: isBeating ? 1 : 0.6,
                     }}
                     transition={{ duration: 0.2 }}
-                    className="w-3 h-3 bg-red-400 rounded-full"
+                    className="w-4 h-4 bg-red-400 rounded-full"
                   />
-                  <span className="text-sm text-gray-400">Live</span>
-                </div>
-                <div className="text-sm text-gray-500">{heartRateData.heart_rate} BPM</div>
-              </div>
-            </div>
-            
-            <div className="h-48 relative overflow-hidden rounded-xl bg-black/50">
-              <svg className="w-full h-full" viewBox="0 0 600 192">
-                <defs>
-                  <linearGradient id="ecgGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="rgba(34, 197, 94, 0)" />
-                    <stop offset="60%" stopColor="rgba(34, 197, 94, 0.6)" />
-                    <stop offset="100%" stopColor="rgba(34, 197, 94, 1)" />
-                  </linearGradient>
-                  <filter id="glow">
-                    <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                    <feMerge> 
-                      <feMergeNode in="coloredBlur"/>
-                      <feMergeNode in="SourceGraphic"/>
-                    </feMerge>
-                  </filter>
-                </defs>
-                
-                {/* Grid lines - Major */}
-                {Array.from({ length: 13 }).map((_, i) => (
-                  <line
-                    key={`major-v-${i}`}
-                    x1={i * 50}
-                    y1={0}
-                    x2={i * 50}
-                    y2={192}
-                    stroke="rgba(34, 197, 94, 0.2)"
-                    strokeWidth="1"
-                  />
-                ))}
-                {Array.from({ length: 9 }).map((_, i) => (
-                  <line
-                    key={`major-h-${i}`}
-                    x1={0}
-                    y1={i * 24}
-                    x2={600}
-                    y2={i * 24}
-                    stroke="rgba(34, 197, 94, 0.2)"
-                    strokeWidth="1"
-                  />
-                ))}
-                
-                {/* Grid lines - Minor */}
-                {Array.from({ length: 61 }).map((_, i) => (
-                  <line
-                    key={`minor-v-${i}`}
-                    x1={i * 10}
-                    y1={0}
-                    x2={i * 10}
-                    y2={192}
-                    stroke="rgba(34, 197, 94, 0.1)"
-                    strokeWidth="0.5"
-                  />
-                ))}
-                {Array.from({ length: 33 }).map((_, i) => (
-                  <line
-                    key={`minor-h-${i}`}
-                    x1={0}
-                    y1={i * 6}
-                    x2={600}
-                    y2={i * 6}
-                    stroke="rgba(34, 197, 94, 0.1)"
-                    strokeWidth="0.5"
-                  />
-                ))}
-                
-                {/* ECG Line */}
-                <polyline
-                  points={ecgPoints.map((point, index) => 
-                    `${(index / ecgPoints.length) * 600},${96 - point * 40}`
-                  ).join(' ')}
-                  fill="none"
-                  stroke="url(#ecgGradient)"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  filter="url(#glow)"
-                />
-                
-                {/* Scanning line */}
-                <motion.line
-                  x1={ecgPoints.length > 0 ? (ecgPoints.length / 150) * 600 : 0}
-                  y1={0}
-                  x2={ecgPoints.length > 0 ? (ecgPoints.length / 150) * 600 : 0}
-                  y2={192}
-                  stroke="rgba(34, 197, 94, 0.8)"
-                  strokeWidth="2"
-                  animate={{
-                    opacity: [0.3, 1, 0.3],
-                  }}
-                  transition={{
-                    duration: 1,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  }}
-                />
-              </svg>
-            </div>
-
-            {/* ECG Info */}
-            <div className="mt-4 flex items-center justify-between text-sm">
-              <div className="flex items-center space-x-6">
-                <div className="flex items-center space-x-2 text-gray-400">
-                  <Clock className="w-4 h-4" />
-                  <span>Updated {formatTimeAgo(heartRateData.updated_at)}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-gray-400">
-                  <TrendingUp className="w-4 h-4" />
-                  <span>Source: {heartRateData.source}</span>
+                  <span className="text-sm text-gray-600 font-medium">Live Monitor</span>
                 </div>
               </div>
-              <div className="text-green-400 font-medium">
-                Lead II • 25mm/s • 10mm/mV
-              </div>
-            </div>
+            )}
           </div>
-        ) : (
-          <div className="bg-black/90 rounded-2xl p-6 border border-gray-700/50 flex-1 flex items-center justify-center">
-            <div className="text-center text-gray-500">
-              <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">No Heart Rate Data</p>
-              <p className="text-sm">Add a medical record with heart rate to see ECG monitoring</p>
-            </div>
-          </div>
-        )}
 
-        {/* BMI Data Meter - Only show if user has provided both weight and height */}
-        {bmiData && (
-          <div className="bg-gradient-to-br from-gray-900/90 via-gray-800/90 to-gray-900/90 rounded-2xl p-6 border border-gray-700/50">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-3">
-                <Scale className="w-6 h-6 text-purple-400" />
-                <span className="text-lg text-purple-400 font-semibold">BMI Monitor</span>
+          {/* ECG Waveform Monitor */}
+          {heartRateData ? (
+            <div className="bg-black/90 rounded-2xl p-6 border border-gray-700/50 flex-1">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <Activity className="w-6 h-6 text-green-400" />
+                  <span className="text-lg text-green-400 font-semibold">ECG Rhythm Monitor</span>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-2">
+                    <motion.div
+                      animate={{
+                        scale: isBeating ? 1.3 : 1,
+                        opacity: isBeating ? 1 : 0.6,
+                      }}
+                      transition={{ duration: 0.2 }}
+                      className="w-3 h-3 bg-red-400 rounded-full"
+                    />
+                    <span className="text-sm text-gray-400">Live</span>
+                  </div>
+                  <div className="text-sm text-gray-500">{heartRateData.heart_rate} BPM</div>
+                </div>
               </div>
-              <div className="flex items-center space-x-4">
+              
+              <div className="h-48 relative overflow-hidden rounded-xl bg-black/50">
+                <svg className="w-full h-full" viewBox="0 0 600 192">
+                  <defs>
+                    <linearGradient id="ecgGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="rgba(34, 197, 94, 0)" />
+                      <stop offset="60%" stopColor="rgba(34, 197, 94, 0.6)" />
+                      <stop offset="100%" stopColor="rgba(34, 197, 94, 1)" />
+                    </linearGradient>
+                    <filter id="glow">
+                      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                      <feMerge> 
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                      </feMerge>
+                    </filter>
+                  </defs>
+                  
+                  {/* Grid lines - Major */}
+                  {Array.from({ length: 13 }).map((_, i) => (
+                    <line
+                      key={`major-v-${i}`}
+                      x1={i * 50}
+                      y1={0}
+                      x2={i * 50}
+                      y2={192}
+                      stroke="rgba(34, 197, 94, 0.2)"
+                      strokeWidth="1"
+                    />
+                  ))}
+                  {Array.from({ length: 9 }).map((_, i) => (
+                    <line
+                      key={`major-h-${i}`}
+                      x1={0}
+                      y1={i * 24}
+                      x2={600}
+                      y2={i * 24}
+                      stroke="rgba(34, 197, 94, 0.2)"
+                      strokeWidth="1"
+                    />
+                  ))}
+                  
+                  {/* Grid lines - Minor */}
+                  {Array.from({ length: 61 }).map((_, i) => (
+                    <line
+                      key={`minor-v-${i}`}
+                      x1={i * 10}
+                      y1={0}
+                      x2={i * 10}
+                      y2={192}
+                      stroke="rgba(34, 197, 94, 0.1)"
+                      strokeWidth="0.5"
+                    />
+                  ))}
+                  {Array.from({ length: 33 }).map((_, i) => (
+                    <line
+                      key={`minor-h-${i}`}
+                      x1={0}
+                      y1={i * 6}
+                      x2={600}
+                      y2={i * 6}
+                      stroke="rgba(34, 197, 94, 0.1)"
+                      strokeWidth="0.5"
+                    />
+                  ))}
+                  
+                  {/* ECG Line */}
+                  <polyline
+                    points={ecgPoints.map((point, index) => 
+                      `${(index / ecgPoints.length) * 600},${96 - point * 40}`
+                    ).join(' ')}
+                    fill="none"
+                    stroke="url(#ecgGradient)"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    filter="url(#glow)"
+                  />
+                  
+                  {/* Scanning line */}
+                  <motion.line
+                    x1={ecgPoints.length > 0 ? (ecgPoints.length / 150) * 600 : 0}
+                    y1={0}
+                    x2={ecgPoints.length > 0 ? (ecgPoints.length / 150) * 600 : 0}
+                    y2={192}
+                    stroke="rgba(34, 197, 94, 0.8)"
+                    strokeWidth="2"
+                    animate={{
+                      opacity: [0.3, 1, 0.3],
+                    }}
+                    transition={{
+                      duration: 1,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }}
+                  />
+                </svg>
+              </div>
+
+              {/* ECG Info */}
+              <div className="mt-4 flex items-center justify-between text-sm">
+                <div className="flex items-center space-x-6">
+                  <div className="flex items-center space-x-2 text-gray-400">
+                    <Clock className="w-4 h-4" />
+                    <span>Updated {formatTimeAgo(heartRateData.updated_at)}</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-gray-400">
+                    <TrendingUp className="w-4 h-4" />
+                    <span>Source: {heartRateData.source}</span>
+                  </div>
+                </div>
+                <div className="text-green-400 font-medium">
+                  Lead II • 25mm/s • 10mm/mV
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-black/90 rounded-2xl p-6 border border-gray-700/50 flex-1 flex items-center justify-center">
+              <div className="text-center text-gray-500">
+                <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium">No Heart Rate Data</p>
+                <p className="text-sm">Add a medical record with heart rate to see ECG monitoring</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Column: BMI Monitor */}
+        <div className="xl:col-span-1">
+          {bmiData ? (
+            <div className="bg-gradient-to-br from-gray-900/90 via-gray-800/90 to-gray-900/90 rounded-2xl p-6 border border-gray-700/50 h-full">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-3">
+                  <Scale className="w-6 h-6 text-purple-400" />
+                  <span className="text-lg text-purple-400 font-semibold">BMI Monitor</span>
+                </div>
                 <div className="text-right">
                   <div className="text-2xl font-bold text-white">{bmiData.bmi}</div>
                   <div className={`text-sm font-medium ${bmiColors.color}`}>{bmiData.category}</div>
                 </div>
-                <div className={`p-3 rounded-full ${bmiColors.bgColor} border border-gray-600/50`}>
-                  <User className={`w-6 h-6 ${bmiColors.color}`} />
+              </div>
+
+              <div className={`p-4 rounded-full ${bmiColors.bgColor} border border-gray-600/50 mb-6 flex items-center justify-center`}>
+                <User className={`w-12 h-12 ${bmiColors.color}`} />
+              </div>
+
+              {/* BMI Scale */}
+              <div className="space-y-4">
+                <div className="relative h-8 bg-gray-700/50 rounded-full overflow-hidden">
+                  {/* BMI Scale Background */}
+                  <div className="absolute inset-0 flex">
+                    <div className="flex-1 bg-blue-500" style={{ width: '18.5%' }}></div>
+                    <div className="flex-1 bg-green-500" style={{ width: '25%' }}></div>
+                    <div className="flex-1 bg-yellow-500" style={{ width: '30%' }}></div>
+                    <div className="flex-1 bg-red-500" style={{ width: '26.5%' }}></div>
+                  </div>
+
+                  {/* BMI Indicator */}
+                  <motion.div
+                    initial={{ left: '0%' }}
+                    animate={{ left: `${getBMIPosition(bmiData.bmi)}%` }}
+                    transition={{ duration: 1, ease: "easeOut" }}
+                    className="absolute top-0 bottom-0 w-1 bg-white shadow-lg"
+                    style={{ transform: 'translateX(-50%)' }}
+                  >
+                    <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-white"></div>
+                  </motion.div>
+                </div>
+
+                {/* BMI Scale Labels */}
+                <div className="grid grid-cols-2 gap-2 text-xs text-gray-400">
+                  <div className="text-center">
+                    <div className="text-blue-400 font-medium">Underweight</div>
+                    <div>{'<'} 18.5</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-green-400 font-medium">Normal</div>
+                    <div>18.5 - 24.9</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-yellow-400 font-medium">Overweight</div>
+                    <div>25.0 - 29.9</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-red-400 font-medium">Obese</div>
+                    <div>≥ 30.0</div>
+                  </div>
+                </div>
+
+                {/* BMI Details */}
+                <div className="space-y-3 pt-4 border-t border-gray-700/50">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400 text-sm">Weight</span>
+                    <span className="text-white font-semibold">{bmiData.weight} kg</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400 text-sm">Height</span>
+                    <span className="text-white font-semibold">{bmiData.height} cm</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400 text-sm">Updated</span>
+                    <span className="text-white font-semibold">{formatTimeAgo(bmiData.updated_at)}</span>
+                  </div>
                 </div>
               </div>
             </div>
-
-            {/* BMI Scale */}
-            <div className="space-y-4">
-              <div className="relative h-8 bg-gray-700/50 rounded-full overflow-hidden">
-                {/* BMI Scale Background */}
-                <div className="absolute inset-0 flex">
-                  <div className="flex-1 bg-blue-500" style={{ width: '18.5%' }}></div>
-                  <div className="flex-1 bg-green-500" style={{ width: '25%' }}></div>
-                  <div className="flex-1 bg-yellow-500" style={{ width: '30%' }}></div>
-                  <div className="flex-1 bg-red-500" style={{ width: '26.5%' }}></div>
-                </div>
-
-                {/* BMI Indicator */}
-                <motion.div
-                  initial={{ left: '0%' }}
-                  animate={{ left: `${getBMIPosition(bmiData.bmi)}%` }}
-                  transition={{ duration: 1, ease: "easeOut" }}
-                  className="absolute top-0 bottom-0 w-1 bg-white shadow-lg"
-                  style={{ transform: 'translateX(-50%)' }}
-                >
-                  <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-white"></div>
-                </motion.div>
-              </div>
-
-              {/* BMI Scale Labels */}
-              <div className="flex justify-between text-xs text-gray-400">
-                <div className="text-center">
-                  <div className="text-blue-400 font-medium">Underweight</div>
-                  <div>{'<'} 18.5</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-green-400 font-medium">Normal</div>
-                  <div>18.5 - 24.9</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-yellow-400 font-medium">Overweight</div>
-                  <div>25.0 - 29.9</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-red-400 font-medium">Obese</div>
-                  <div>≥ 30.0</div>
-                </div>
-              </div>
-
-              {/* BMI Details */}
-              <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-700/50">
-                <div className="text-center">
-                  <div className="text-gray-400 text-sm">Weight</div>
-                  <div className="text-white font-semibold">{bmiData.weight} kg</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-gray-400 text-sm">Height</div>
-                  <div className="text-white font-semibold">{bmiData.height} cm</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-gray-400 text-sm">Updated</div>
-                  <div className="text-white font-semibold">{formatTimeAgo(bmiData.updated_at)}</div>
-                </div>
+          ) : (
+            <div className="bg-gradient-to-br from-gray-900/90 via-gray-800/90 to-gray-900/90 rounded-2xl p-6 border border-gray-700/50 h-full flex items-center justify-center">
+              <div className="text-center text-gray-500">
+                <Scale className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium">No BMI Data</p>
+                <p className="text-sm">Add weight and height to see BMI monitoring</p>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
