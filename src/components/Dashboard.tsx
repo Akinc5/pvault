@@ -94,9 +94,6 @@ const Dashboard: React.FC = () => {
     { id: 'records', label: 'Records', icon: FileText },
     { id: 'prescriptions', label: 'Prescriptions', icon: Pill },
     { id: 'timeline', label: 'Timeline', icon: Clock },
-    { id: 'trends', label: 'Health Trends', icon: TrendingUp },
-    { id: 'xray', label: 'X-Ray Viewer', icon: Zap },
-    { id: '3d', label: '3D Visualization', icon: Star }
   ];
 
   if (loading) {
