@@ -395,30 +395,6 @@ const Dashboard: React.FC = () => {
             </GlassmorphicCard>
           </Card3D>
         )}
-
-        {activeTab === 'trends' && (
-          <Card3D mousePosition={mousePosition}>
-            <GlassmorphicCard className="p-6">
-              <HealthTrendChart medicalRecords={medicalRecords || []} />
-            </GlassmorphicCard>
-          </Card3D>
-        )}
-
-        {activeTab === 'xray' && (
-          <Card3D mousePosition={mousePosition}>
-            <GlassmorphicCard className="p-6">
-              <XRayViewer />
-            </GlassmorphicCard>
-          </Card3D>
-        )}
-
-        {activeTab === '3d' && (
-          <Card3D mousePosition={mousePosition}>
-            <GlassmorphicCard className="p-6">
-              <Scene3D />
-            </GlassmorphicCard>
-          </Card3D>
-        )}
       </main>
 
       {/* Modals */}
