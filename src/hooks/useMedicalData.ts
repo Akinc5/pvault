@@ -134,6 +134,15 @@ export const useMedicalData = (userId: string | null) => {
       setPrescriptions([]);
     }
   };
+const deleteMedicalRecord = async (recordId: string) => {
+  try {
+    const recordRef = doc(db, 'medicalRecords', recordId);
+    await deleteDoc(recordRef);
+    setMedicalRecords(prev => prev?.filter(r => r.id !== recordId) || []);
+  } catch (err) {
+    console.error('Error deleting record:', err);
+  }
+};
 
   // Generate timeline events from medical data
   useEffect(() => {
