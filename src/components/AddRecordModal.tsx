@@ -14,8 +14,7 @@ import {
   Activity,
   Heart,
   Droplets,
-  Ruler,
-  Trash
+  Ruler
 } from 'lucide-react';
 import { MedicalRecord } from '../types';
 
@@ -23,11 +22,9 @@ interface AddRecordModalProps {
   onClose: () => void;
   onSave: (record: Omit<MedicalRecord, 'id' | 'uploadDate'>) => Promise<any>;
   onUploadFile: (file: File, recordId: string) => Promise<string | null>;
-  onDelete?: (recordId: string) => Promise<void>; // Optional delete prop
-  recordIdToDelete?: string;
 }
 
-const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, onSave, onUploadFile, onDelete, recordIdToDelete }) => {
+const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, onSave, onUploadFile }) => {
   const [formData, setFormData] = useState({
     title: '',
     doctorName: '',
@@ -61,8 +58,9 @@ const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, onSave, onUplo
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Validate file type and size
       const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
-      const maxSize = 10 * 1024 * 1024;
+      const maxSize = 10 * 1024 * 1024; // 10MB
 
       if (!allowedTypes.includes(file.type)) {
         setError('Only PDF, JPG, and PNG files are allowed.');
@@ -81,7 +79,7 @@ const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, onSave, onUplo
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    
     if (!formData.title.trim()) {
       setError('Please enter a title for the record.');
       return;
@@ -101,14 +99,16 @@ const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, onSave, onUplo
     setError(null);
 
     try {
+      // Prepare record data
       const recordData: Omit<MedicalRecord, 'id' | 'uploadDate'> = {
         title: formData.title.trim(),
         doctorName: formData.doctorName.trim(),
         visitDate: formData.visitDate,
         category: formData.category,
         fileType: selectedFile ? selectedFile.type : 'PDF',
-        fileSize: selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : '0 MB',
+        fileSize: selectedFile ? ${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB : '0 MB',
         fileUrl: undefined,
+        // Vitals data
         weight: formData.weight ? parseFloat(formData.weight) : undefined,
         height: formData.height ? parseFloat(formData.height) : undefined,
         bloodPressure: formData.bloodPressure.trim() || undefined,
@@ -116,14 +116,17 @@ const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, onSave, onUplo
         bloodSugar: formData.bloodSugar ? parseFloat(formData.bloodSugar) : undefined,
       };
 
+      // Save the record first
       const savedRecord = await onSave(recordData);
-
+      
+      // Upload file if selected
       if (selectedFile && savedRecord?.id) {
         await onUploadFile(selectedFile, savedRecord.id);
       }
 
       setSuccess(true);
-
+      
+      // Close modal after success
       setTimeout(() => {
         onClose();
       }, 1500);
@@ -133,19 +136,6 @@ const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, onSave, onUplo
       setError(error.message || 'Failed to save medical record. Please try again.');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!recordIdToDelete || !onDelete) return;
-    const confirm = window.confirm("Are you sure you want to delete this record?");
-    if (!confirm) return;
-    try {
-      await onDelete(recordIdToDelete);
-      onClose();
-    } catch (error: any) {
-      console.error('Failed to delete record:', error);
-      setError('Could not delete record. Try again.');
     }
   };
 
@@ -167,6 +157,7 @@ const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, onSave, onUplo
 
   return (
     <div className="p-6">
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-blue-100 rounded-xl">
@@ -182,6 +173,7 @@ const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, onSave, onUplo
         </button>
       </div>
 
+      {/* Error Message */}
       {error && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -193,8 +185,200 @@ const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, onSave, onUplo
         </motion.div>
       )}
 
+      {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* ... form content remains unchanged ... */}
+        {/* Basic Information */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Record Title *
+            </label>
+            <input
+              type="text"
+              name="title"
+              value={formData.title}
+              onChange={handleInputChange}
+              className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="e.g., Annual Physical Exam, Blood Test Results"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Doctor Name *
+              </label>
+              <input
+                type="text"
+                name="doctorName"
+                value={formData.doctorName}
+                onChange={handleInputChange}
+                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Dr. Smith"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Visit Date *
+              </label>
+              <input
+                type="date"
+                name="visitDate"
+                value={formData.visitDate}
+                onChange={handleInputChange}
+                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Category
+            </label>
+            <select
+              name="category"
+              value={formData.category}
+              onChange={handleInputChange}
+              className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              {categories.map(category => (
+                <option key={category.value} value={category.value}>
+                  {category.icon} {category.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Vitals Information */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
+            <Activity className="w-5 h-5 text-blue-600" />
+            <span>Vital Signs (Optional)</span>
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center space-x-1">
+                <Weight className="w-4 h-4" />
+                <span>Weight (kg)</span>
+              </label>
+              <input
+                type="number"
+                name="weight"
+                value={formData.weight}
+                onChange={handleInputChange}
+                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="70"
+                step="0.1"
+                min="0"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center space-x-1">
+                <Ruler className="w-4 h-4" />
+                <span>Height (cm)</span>
+              </label>
+              <input
+                type="number"
+                name="height"
+                value={formData.height}
+                onChange={handleInputChange}
+                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="175"
+                step="0.1"
+                min="0"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center space-x-1">
+                <Heart className="w-4 h-4" />
+                <span>Heart Rate (bpm)</span>
+              </label>
+              <input
+                type="number"
+                name="heartRate"
+                value={formData.heartRate}
+                onChange={handleInputChange}
+                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="72"
+                min="0"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center space-x-1">
+                <Activity className="w-4 h-4" />
+                <span>Blood Pressure</span>
+              </label>
+              <input
+                type="text"
+                name="bloodPressure"
+                value={formData.bloodPressure}
+                onChange={handleInputChange}
+                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="120/80"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center space-x-1">
+                <Droplets className="w-4 h-4" />
+                <span>Blood Sugar (mg/dL)</span>
+              </label>
+              <input
+                type="number"
+                name="bloodSugar"
+                value={formData.bloodSugar}
+                onChange={handleInputChange}
+                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="100"
+                step="0.1"
+                min="0"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* File Upload */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
+            <Upload className="w-5 h-5 text-green-600" />
+            <span>Attach Document (Optional)</span>
+          </h3>
+          
+          <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-gray-400 transition-colors">
+            <input
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={handleFileSelect}
+              className="hidden"
+              id="file-upload"
+            />
+            <label htmlFor="file-upload" className="cursor-pointer">
+              <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+              <p className="text-gray-600 mb-1">Click to upload a file</p>
+              <p className="text-sm text-gray-500">PDF, JPG, PNG up to 10MB</p>
+            </label>
+            
+            {selectedFile && (
+              <div className="mt-4 p-3 bg-green-50 rounded-lg">
+                <p className="text-green-800 font-medium">{selectedFile.name}</p>
+                <p className="text-green-600 text-sm">
+                  {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Action Buttons */}
         <div className="flex space-x-4 pt-6">
@@ -205,18 +389,7 @@ const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, onSave, onUplo
           >
             Cancel
           </button>
-
-          {recordIdToDelete && onDelete && (
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="flex-1 px-6 py-3 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors flex items-center justify-center space-x-2"
-            >
-              <Trash className="w-4 h-4" />
-              <span>Delete</span>
-            </button>
-          )}
-
+          
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
