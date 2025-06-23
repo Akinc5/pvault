@@ -274,7 +274,7 @@ const HeartRateVisualization: React.FC<HeartRateVisualizationProps> = ({
     if (diffMins < 60) return ${diffMins}m ago;
     if (diffHours < 24) return ${diffHours}h ago;
     return ${diffDays}d ago;
-  };
+     };
 
   if (loading) {
     return (
