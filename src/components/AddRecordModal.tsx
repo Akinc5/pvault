@@ -106,7 +106,7 @@ const AddRecordModal: React.FC<AddRecordModalProps> = ({ onClose, onSave, onUplo
         visitDate: formData.visitDate,
         category: formData.category,
         fileType: selectedFile ? selectedFile.type : 'PDF',
-        fileSize: selectedFile ? $:(selectedFile.size / (1024 * 1024).toFixed(2)) MB : '0 MB',
+        fileSize: selectedFile ? '${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB' : '0 MB',
         fileUrl: undefined,
         // Vitals data
         weight: formData.weight ? parseFloat(formData.weight) : undefined,
