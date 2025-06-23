@@ -15,7 +15,6 @@ export const useMedicalData = (userId: string | null) => {
     } else {
       console.log('No user ID provided, skipping medical data fetch');
       setLoading(false);
-      // Clear data when no user
       setMedicalRecords([]);
       setPrescriptions([]);
       setTimelineEvents([]);
@@ -32,7 +31,6 @@ export const useMedicalData = (userId: string | null) => {
     try {
       console.log('Starting to fetch all medical data...');
       
-      // Add timeout to prevent hanging
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Data fetch timeout')), 15000)
       );
@@ -81,9 +79,8 @@ export const useMedicalData = (userId: string | null) => {
         fileSize: record.file_size,
         uploadDate: record.uploaded_at.split('T')[0],
         fileUrl: record.file_url,
-        // Include vitals data - IMPORTANT: Include height for BMI calculation
         weight: record.weight,
-        height: record.height, // This is crucial for BMI calculation
+        height: record.height,
         bloodPressure: record.blood_pressure,
         heartRate: record.heart_rate,
         bloodSugar: record.blood_sugar,
@@ -134,22 +131,11 @@ export const useMedicalData = (userId: string | null) => {
       setPrescriptions([]);
     }
   };
-const deleteMedicalRecord = async (recordId: string) => {
-  try {
-    const recordRef = doc(db, 'medicalRecords', recordId);
-    await deleteDoc(recordRef);
-    setMedicalRecords(prev => prev?.filter(r => r.id !== recordId) || []);
-  } catch (err) {
-    console.error('Error deleting record:', err);
-  }
-};
 
-  // Generate timeline events from medical data
   useEffect(() => {
     console.log('Generating timeline events...');
     
     const events: TimelineEvent[] = [
-      // Medical record events
       ...medicalRecords.map(record => ({
         id: `record-${record.id}`,
         type: 'record' as const,
@@ -159,8 +145,6 @@ const deleteMedicalRecord = async (recordId: string) => {
         data: record,
         importance: 'medium' as const
       })),
-      
-      // Prescription events
       ...prescriptions.map(prescription => ({
         id: `prescription-${prescription.id}`,
         type: 'prescription' as const,
@@ -172,7 +156,6 @@ const deleteMedicalRecord = async (recordId: string) => {
       }))
     ];
 
-    // Sort by date (most recent first)
     events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
     console.log(`Generated ${events.length} timeline events`);
@@ -184,7 +167,7 @@ const deleteMedicalRecord = async (recordId: string) => {
 
     try {
       console.log('Adding medical record:', record.title);
-      console.log('Record data:', record); // Debug log
+      console.log('Record data:', record);
       
       const { data, error } = await supabase
         .from('medical_records')
@@ -197,9 +180,8 @@ const deleteMedicalRecord = async (recordId: string) => {
           file_type: record.fileType || 'PDF',
           file_size: record.fileSize || '0 MB',
           file_url: record.fileUrl || null,
-          // Include vitals data - CRITICAL: Make sure height is included
           weight: record.weight || null,
-          height: record.height || null, // This is essential for BMI calculation
+          height: record.height || null,
           blood_pressure: record.bloodPressure || null,
           heart_rate: record.heartRate || null,
           blood_sugar: record.bloodSugar || null,
@@ -213,8 +195,6 @@ const deleteMedicalRecord = async (recordId: string) => {
       }
 
       console.log('Medical record added successfully:', data);
-      
-      // Refresh medical records to show the new data
       await fetchMedicalRecords();
       return data;
     } catch (error) {
@@ -232,7 +212,6 @@ const deleteMedicalRecord = async (recordId: string) => {
       const fileExt = file.name.split('.').pop();
       const fileName = `${userId}/${recordId}-${Date.now()}.${fileExt}`;
 
-      // Upload file to Supabase Storage (assumes bucket exists)
       const { data, error } = await supabase.storage
         .from('medical-files')
         .upload(fileName, file, {
@@ -245,13 +224,12 @@ const deleteMedicalRecord = async (recordId: string) => {
         throw error;
       }
 
-      // Get signed URL for secure access
       let publicUrl: string;
       
       try {
         const { data: signedData, error: signedError } = await supabase.storage
           .from('medical-files')
-          .createSignedUrl(fileName, 60 * 60 * 24 * 365); // 1 year expiry
+          .createSignedUrl(fileName, 60 * 60 * 24 * 365);
 
         if (signedError) {
           console.warn('Signed URL failed, trying public URL:', signedError);
@@ -270,7 +248,6 @@ const deleteMedicalRecord = async (recordId: string) => {
         publicUrl = fallbackUrl;
       }
 
-      // Update the medical record with the file URL
       const { error: updateError } = await supabase
         .from('medical_records')
         .update({ file_url: publicUrl })
@@ -278,16 +255,37 @@ const deleteMedicalRecord = async (recordId: string) => {
 
       if (updateError) {
         console.error('Error updating record with file URL:', updateError);
-        // Don't throw error here, file was uploaded successfully
       }
 
       console.log('File uploaded successfully and record updated');
       return publicUrl;
     } catch (error: any) {
       console.error('Error in uploadFile:', error);
-      // Don't throw error, just log it and return null
       console.warn('File upload failed, continuing without file');
       return null;
+    }
+  };
+
+  const deleteMedicalRecord = async (recordId: string) => {
+    if (!recordId) return;
+
+    try {
+      console.log('Deleting medical record:', recordId);
+      
+      const { error } = await supabase
+        .from('medical_records')
+        .delete()
+        .eq('id', recordId);
+
+      if (error) {
+        console.error('Error deleting medical record:', error);
+        return;
+      }
+
+      console.log('Record deleted successfully');
+      await fetchMedicalRecords();
+    } catch (error) {
+      console.error('Error in deleteMedicalRecord:', error);
     }
   };
 
@@ -299,5 +297,6 @@ const deleteMedicalRecord = async (recordId: string) => {
     addMedicalRecord,
     uploadFile,
     refetch: fetchAllMedicalData,
+    deleteMedicalRecord, // ✅ added here
   };
 };
