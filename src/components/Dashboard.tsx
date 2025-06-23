@@ -25,6 +25,7 @@ import ShareAccess from './ShareAccess';
 import EmergencyMode from './EmergencyMode';
 import ChatBot from './ChatBot/ChatBot';
 import AddRecordModal from './AddRecordModal';
+import HeartRateVisualization from './HeartRateVisualization';
 
 interface MousePosition {
   x: number;
@@ -63,10 +64,18 @@ const Card3D: React.FC<Card3DProps> = ({ children, className = '', mousePosition
     </div>
   );
 };
-
 const Dashboard: React.FC = () => {
   const { user, signOut } = useAuth();
-  const { medicalRecords, prescriptions, timelineEvents, loading, addMedicalRecord, uploadFile } = useMedicalData(user?.id || null);
+  const {
+    medicalRecords,
+    prescriptions,
+    timelineEvents,
+    loading,
+    addMedicalRecord,
+    uploadFile,
+    deleteMedicalRecord,
+  } = useMedicalData(user?.id || null);
+  
   const [activeTab, setActiveTab] = useState('overview');
   const [showUpload, setShowUpload] = useState(false);
   const [showShare, setShowShare] = useState(false);
@@ -88,6 +97,16 @@ const Dashboard: React.FC = () => {
 
   const recentRecords = medicalRecords?.slice(0, 3) || [];
   const recentPrescriptions = prescriptions?.slice(0, 3) || [];
+  const handleDelete = async (id: string) => {
+    const confirmed = confirm('Are you sure you want to delete this record?');
+    if (!confirmed) return;
+    try {
+      await deleteMedicalRecord(id);
+      toast.success('Record deleted successfully');
+    } catch (err) {
+      toast.error('Failed to delete record');
+    }
+  };
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Activity },
@@ -220,6 +239,12 @@ const Dashboard: React.FC = () => {
           <div className="space-y-8">
             {/* Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <Card3D mousePosition={mousePosition}>
+                <HeartRateVisualization className="w-full" 
+                    heartRateData={medicalRecords?.[0]?.heartRate}
+                    bmiData={medicalRecords?.[0]?.bmi}/>
+                   </Card3D>
+
               <Card3D mousePosition={mousePosition}>
                 <GlassmorphicCard className="p-6 hover:shadow-2xl transition-all duration-300">
                   <div className="flex items-center justify-between">
