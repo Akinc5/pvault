@@ -25,7 +25,6 @@ import ShareAccess from './ShareAccess';
 import EmergencyMode from './EmergencyMode';
 import ChatBot from './ChatBot/ChatBot';
 import AddRecordModal from './AddRecordModal';
-import HeartRateVisualization from './HeartRateVisualization';
 
 interface MousePosition {
   x: number;
@@ -239,11 +238,6 @@ const Dashboard: React.FC = () => {
           <div className="space-y-8">
             {/* Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <Card3D mousePosition={mousePosition}>
-                <HeartRateVisualization className="w-full" 
-                    heartRateData={medicalRecords?.[0]?.heartRate}
-                    bmiData={medicalRecords?.[0]?.bmi}/>
-                   </Card3D>
 
               <Card3D mousePosition={mousePosition}>
                 <GlassmorphicCard className="p-6 hover:shadow-2xl transition-all duration-300">
